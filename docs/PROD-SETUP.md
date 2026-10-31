@@ -69,19 +69,19 @@ These are in **Google Cloud console** for the same project. Use the project pick
 sure it shows your PROD project ID, **not** `mudra-925e7`.
 
 ### Sign-in redirect
-19. - [ ] https://console.cloud.google.com/apis/credentials?project=YOUR-PROD-ID
+19. - [ ] https://console.cloud.google.com/apis/credentials?project=mudra-academy
 20. - [ ] Under **OAuth 2.0 Client IDs**, open **"Web client (auto created by Google Service)"**.
           (It only appears after step 8.)
-21. - [ ] **Authorized JavaScript origins → + Add URI** → `https://YOUR-PROD-ID.web.app`
+21. - [ ] **Authorized JavaScript origins → + Add URI** → `https://mudra-academy.web.app`
           (no path, no trailing `/`)
-22. - [ ] **Authorized redirect URIs → + Add URI** → `https://YOUR-PROD-ID.web.app/__/auth/handler`
+22. - [ ] **Authorized redirect URIs → + Add URI** → `https://mudra-academy.web.app/__/auth/handler`
 23. - [ ] **Save** (at the bottom). It can take a few minutes to take effect.
 
 > ⚠️ On TEST, the handler URL was first put under *JavaScript origins*, which gives
 > "Invalid Origin: URIs must not contain a path". The `/__/auth/handler` URL goes under **Redirect URIs**.
 
 ### Deploy key for GitHub Actions
-24. - [ ] https://console.cloud.google.com/iam-admin/serviceaccounts?project=YOUR-PROD-ID
+24. - [ ] https://console.cloud.google.com/iam-admin/serviceaccounts?project=mudra-academy
 25. - [ ] **+ Create service account** → name `github-deploy` → Create and continue
 26. - [ ] Add these 4 roles:
           - **Firebase Hosting Admin**
@@ -125,7 +125,7 @@ sure it shows your PROD project ID, **not** `mudra-925e7`.
           check the base is `main`.)
 34. - [ ] **Actions → Deploy** shows a run on `main`. If you set Required reviewers, click
           **Review deployments → prod → Approve**.
-35. - [ ] Wait for the green tick. The run summary shows `Deployed to prod: https://YOUR-PROD-ID.web.app`
+35. - [ ] Wait for the green tick. The run summary shows `Deployed to prod: https://mudra-academy.web.app`
 
 > If the run is green but finishes in a few seconds, it **skipped**, which means the secret or
 > `env/prod.js` is missing. Open the run, read the yellow warning, fix it, and re-run with
@@ -135,7 +135,7 @@ sure it shows your PROD project ID, **not** `mudra-925e7`.
 
 ## Part G — Verify before giving it to her (10 min)
 
-36. - [ ] Open `https://YOUR-PROD-ID.web.app` in a private/incognito window.
+36. - [ ] Open `https://mudra-academy.web.app` in a private/incognito window.
           The header says **Mudra** with **no TEST tag**.
 37. - [ ] Sign in with an account **not** on the list, and you should see **No access**. ✅ The lock works.
 38. - [ ] If you added yourself: sign in, check the app is empty, and that **"Load sample data" does NOT
@@ -149,7 +149,7 @@ sure it shows your PROD project ID, **not** `mudra-925e7`.
 
 Do this with her, on each device she'll use:
 
-40. - [ ] Open `https://YOUR-PROD-ID.web.app`
+40. - [ ] Open `https://mudra-academy.web.app`
           - **Surface (Edge):** ⋯ → **Apps → Install this site as an app** → pin to Start/taskbar
           - **Android (Chrome):** ⋮ → **Install app**
           - **iPhone (Safari):** Share → **Add to Home Screen**
