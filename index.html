@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mudra</title>
+<meta name="theme-color" content="#7a1f2b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{color-scheme:light dark;--bg:#fbf6ef;--card:#fff;--ink:#2a1a14;--muted:#7b6a60;--line:#eadfd2;--accent:#7a1f2b;--accent-ink:#fff;--head:#7a1f2b;--gold:#c8902e;--ok:#2f7d4f;--ok-bg:#e3f3e8;--due:#b4471f;--due-bg:#fbe7dc;--up:#8a5a00;--up-bg:#fdf1d6;--tile:#f4ece2}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1412;--card:#251c19;--ink:#f3e9df;--muted:#b3a297;--line:#3a2d28;--accent:#e07a88;--accent-ink:#1b1412;--head:#4a1018;--gold:#e0b25a;--ok:#6cc792;--ok-bg:#1f3427;--due:#f08a5d;--due-bg:#3b2419;--up:#e8c26a;--up-bg:#3a2f17;--tile:#2f2420}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 "Segoe UI",system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+header{background:var(--head);color:#fff;padding:12px 20px;display:flex;align-items:center;gap:12px}
+header img{width:40px;height:40px;border-radius:10px}
+header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.02em;line-height:1.1}
+header small{opacity:.8;font-size:13px}
+nav{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;overflow-x:auto}
+nav button{flex:1;min-width:84px;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:14px 10px;border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--accent);border-bottom-color:var(--gold)}
+main{max-width:1000px;margin:0 auto;padding:16px 16px 60px}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
+.grow{flex:1;min-width:0}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:none}
+.btn.danger{color:var(--due);border-color:var(--due);background:none}
+.btn.sm{min-height:36px;padding:6px 12px;font-size:14px}
+.link{background:none;border:0;padding:0;font:inherit;color:var(--accent);font-weight:600;cursor:pointer;text-align:left}
+.link.u{text-decoration:underline;font-size:13px}
+.sub{color:var(--muted);margin:4px 0 14px}
+.warn{color:var(--due);font-weight:600}
+.countrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.count{font-size:18px}.count b{font-size:28px;color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer;min-height:130px;transition:background .12s,border-color .12s}
+.tile .av{width:52px;height:52px;font-size:18px}
+.tile .nm{font-weight:600;text-align:center;line-height:1.2}
+.tile .st{font-size:12px;color:var(--muted)}
+.tile.on{background:var(--ok-bg);border-color:var(--ok)}
+.tile.on .st{color:var(--ok);font-weight:700}
+.tile.on .av{background:var(--ok);color:#fff}
+.av{flex:none;width:42px;height:42px;border-radius:50%;background:var(--tile);color:var(--accent);display:grid;place-items:center;font-weight:700}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:14px;text-align:left;font:inherit;color:inherit;width:100%;flex-wrap:wrap}
+button.item{cursor:pointer}
+.item small{display:block;color:var(--muted);font-size:13px}
+.item small.okt{color:var(--ok)}
+.chev{color:var(--muted);font-size:22px}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.chip{font-size:12px;font-weight:700;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.due{background:var(--due-bg);color:var(--due)}.chip.up{background:var(--up-bg);color:var(--up)}.chip.none{background:var(--tile);color:var(--muted)}
+.pill{font-size:12px;background:var(--tile);color:var(--muted);padding:2px 8px;border-radius:99px;font-weight:600;vertical-align:middle}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+.stat small{color:var(--muted);font-weight:600;display:block}.stat b{display:block;font-size:24px}
+.stat.ok b{color:var(--ok)}.stat.due b{color:var(--due)}.stat.up b{color:var(--up)}
+.empty{text-align:center;padding:40px 16px;background:var(--card);border:1px dashed var(--line);border-radius:16px}
+.empty h3{margin:0 0 6px}.empty p{color:var(--muted);margin:0 0 16px}
+.banner{background:var(--due-bg);border-radius:12px;padding:10px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+.card h2{font-size:17px;margin:0 0 12px}
+.card h3{font-size:15px;margin:16px 0 8px;color:var(--muted)}
+.tablewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.num{text-align:right}
+.pct{height:6px;background:var(--tile);border-radius:3px;margin-top:4px;overflow:hidden;min-width:60px}.pct i{display:block;height:100%;background:var(--gold)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;font:inherit;font-weight:600;padding:10px 16px;min-height:44px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.profile{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.profile .av{width:56px;height:56px;font-size:20px}
+.profile small{display:block;color:var(--muted)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:520px}
+.cal .h{font-size:12px;color:var(--muted);text-align:center;font-weight:700;padding-bottom:2px}
+.cal .d{min-height:52px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600;font-size:14px;border:2px solid transparent;line-height:1.1}
+.cal .d i{font-style:normal;font-size:12px;font-weight:800}
+.cal .d.att{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)}
+.cal .d.miss{background:var(--due-bg);color:var(--due);border-color:var(--due)}
+.cal .d.nm{border:2px dashed var(--line);color:var(--ink)}
+.cal .d.off{color:var(--muted);opacity:.45}
+.cal .d.today{box-shadow:0 0 0 2px var(--gold)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:10px}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px}
+.legend .la::before{background:var(--ok)}.legend .lm::before{background:var(--due)}.legend .ln::before{border:2px dashed var(--muted);width:8px;height:8px}
+dialog{border:0;border-radius:18px;padding:0;width:min(480px,calc(100vw - 32px));background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(30,10,10,.45)}
+dialog form{padding:20px;display:flex;flex-direction:column;gap:14px}
+dialog h2{margin:0;font-size:20px}
+.days{display:flex;flex-wrap:wrap;gap:6px}
+.days label{position:relative}
+.days input{position:absolute;opacity:0;width:1px;height:1px;min-height:0}
+.days span{display:inline-block;padding:8px 12px;border:1px solid var(--line);border-radius:99px;font-weight:600;cursor:pointer;min-width:52px;text-align:center}
+.days input:checked+span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.days input:focus-visible+span{outline:2px solid var(--gold)}
+.dlg-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.dlg-actions .left{margin-right:auto;display:flex;gap:8px}
+.check{display:flex;gap:8px;align-items:center;min-height:44px;color:var(--muted);font-weight:600;font-size:14px}
+.check input{width:20px;height:20px;min-height:0}
+.hint{color:var(--muted);font-size:14px;margin:0 0 10px}
+.preview{background:var(--tile);border-radius:12px;padding:10px 14px;font-size:14px;white-space:pre-wrap;margin:10px 0}
+code{background:var(--tile);padding:1px 6px;border-radius:6px;font-size:13px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;transition:transform .25s;z-index:20;font-weight:600;max-width:calc(100vw - 32px)}
+#toast.show{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<header><img src="icon-192.png" alt=""><div><h1>Mudra</h1><small>Attendance &amp; Fees</small></div></header>
+<nav>
+  <button data-act="tab" data-id="today">Today</button>
+  <button data-act="tab" data-id="history">History</button>
+  <button data-act="tab" data-id="students">Students</button>
+  <button data-act="tab" data-id="fees">Fees</button>
+  <button data-act="tab" data-id="reports">Reports</button>
+  <button data-act="tab" data-id="settings">Settings</button>
+</nav>
+<main id="main"></main>
+<dialog id="dlg"></dialog>
+<div id="toast" role="status"></div>
+
+<script>
+'use strict';
+/* ---------- constants & helpers ---------- */
+const STUDIO='Mudra';
+const DEFAULT_MSG="Namaste! A gentle reminder that {name}'s fee of {amount} for {month} at Mudra is due on {due}. Thank you!";
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const WEEK=[1,2,3,4,5,6,0];
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parse=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d||1)};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rupee=n=>'₹'+Number(n||0).toLocaleString('en-IN');
+const monthLabel=m=>parse(m+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+const shortMonth=m=>parse(m+'-01').toLocaleDateString('en-IN',{month:'short'});
+const fmtDate=s=>s?parse(s.slice(0,10)).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'';
+const dayMonth=s=>parse(s).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+const addMonth=(m,n)=>{const d=parse(m+'-01');d.setMonth(d.getMonth()+n);return ymd(d).slice(0,7)};
+const initials=n=>n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+const byName=(a,b)=>a.name.localeCompare(b.name);
+const fresh=()=>({version:2,batches:[],students:[],attendance:{},payments:[],lastBackup:null,defaultFee:1000,dueDay:15,waTemplate:DEFAULT_MSG});
+
+let state=fresh(), tab='today';
+const today=ymd(new Date()), thisMonth=today.slice(0,7);
+const ui={date:today,batch:null,month:thisMonth,search:'',showArchived:false,lastMode:'UPI',hist:'classes',hBatch:null,hStudent:null};
+
+/* ---------- storage (IndexedDB, localStorage fallback) ---------- */
+let db=null;
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('dance-register',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function load(){
+  try{db=await openDB();return await new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get('state');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+  catch(e){db=null;try{return JSON.parse(localStorage.getItem('dance-register')||'null')}catch(_){return null}}
+}
+function save(){
+  if(db){try{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(JSON.parse(JSON.stringify(state)),'state');t.onerror=()=>toast('Could not save — please back up now');return}catch(e){}}
+  try{localStorage.setItem('dance-register',JSON.stringify(state))}catch(e){toast('Could not save — please back up now')}
+}
+
+/* ---------- lookups ---------- */
+const batchById=id=>state.batches.find(b=>b.id===id);
+const studentById=id=>state.students.find(s=>s.id===id);
+const studentsIn=(bid,all)=>state.students.filter(s=>s.batchId===bid&&(all||s.active)).sort(byName);
+const paymentFor=(sid,m)=>state.payments.find(p=>p.studentId===sid&&p.month===m);
+function defaultBatch(d){const wd=parse(d).getDay();const b=state.batches.find(b=>b.days.includes(wd))||state.batches[0];return b?b.id:null}
+
+/* ---------- fee rules: monthly, due on dueDay; first fee = first due date on/after joining ---------- */
+const dueDate=m=>m+'-'+pad(Math.min(Math.max(Number(state.dueDay)||15,1),28));
+function firstMonth(s){if(!s.joined)return thisMonth;const jm=s.joined.slice(0,7);return s.joined<=dueDate(jm)?jm:addMonth(jm,1)}
+function billable(s,m){
+  if(!(Number(s.fee)>0)||m<firstMonth(s))return false;
+  if(!s.active){const l=s.left?s.left.slice(0,7):null;if(!l||m>l)return false}
+  return true;
+}
+function feeStatus(s,m){
+  const p=paymentFor(s.id,m);if(p)return{k:'paid',p};
+  if(!(Number(s.fee)>0))return{k:'free'};
+  if(m<firstMonth(s))return{k:'notyet',f:firstMonth(s)};
+  if(!billable(s,m))return{k:'na'};
+  return{k:today>dueDate(m)?'overdue':'upcoming',due:dueDate(m)};
+}
+function overdueMonths(s,upto){
+  const out=[];let m=firstMonth(s),g=0;
+  while(m<=upto&&g++<240){if(billable(s,m)&&!paymentFor(s.id,m)&&today>dueDate(m))out.push(m);m=addMonth(m,1)}
+  return out;
+}
+function feeChip(st){return{
+  paid:'<span class="chip ok">Paid</span>',free:'<span class="chip none">No fee</span>',na:'<span class="chip none">—</span>',
+  notyet:`<span class="chip none">First fee ${st.f?shortMonth(st.f):''}</span>`,
+  overdue:'<span class="chip due">Overdue</span>',upcoming:`<span class="chip up">Due ${st.due?dayMonth(st.due):''}</span>`}[st.k]}
+const fillMsg=(s,m)=>(state.waTemplate||DEFAULT_MSG).replace(/\{(\w+)\}/g,(x,k)=>({name:s.name,amount:rupee(s.fee),month:monthLabel(m),due:fmtDate(dueDate(m)),studio:STUDIO})[k]??x);
+
+/* ---------- UI bits ---------- */
+let toastT;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2400)}
+const empty=(title,text,action)=>`<div class="empty"><h3>${title}</h3>${text?`<p>${text}</p>`:''}${action||''}</div>`;
+function backupBanner(){
+  if(!state.students.length)return'';
+  const lb=state.lastBackup, days=lb?Math.floor((Date.now()-new Date(lb))/864e5):null;
+  if(lb&&days<7)return'';
+  return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Save a copy so nothing is lost if this device has a problem.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
+}
+const monthInput=id=>`<label class="field"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
+const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&s.left>=d)));
+
+/* ---------- Today ---------- */
+function viewToday(){
+  if(!state.batches.length)return empty('Start by creating a batch','Batches are your class groups, e.g. “Beginners — Mon &amp; Thu, 5 pm”.','<button class="btn primary" data-act="batch-new">Create a batch</button><p class="hint" style="margin-top:14px">Just exploring? <a href="#" data-act="demo">Load sample data</a></p>');
+  if(!batchById(ui.batch))ui.batch=defaultBatch(ui.date);
+  const b=batchById(ui.batch), key=ui.date+'|'+b.id, rec=state.attendance[key], present=new Set(rec||[]);
+  const wd=parse(ui.date).getDay(), scheduled=b.days.includes(wd);
+  const list=rosterOn(b.id,ui.date).sort(byName);
+  (rec||[]).forEach(id=>{if(!list.some(s=>s.id===id)){const s=studentById(id);if(s)list.push(s)}});
+  let h=`<div class="bar">
+    <label class="field"><span>Date</span><input type="date" id="t-date" value="${ui.date}" max="${today}"></label>
+    <label class="field grow"><span>Batch</span><select id="t-batch">${state.batches.map(x=>`<option value="${x.id}"${x.id===b.id?' selected':''}>${esc(x.name)}${x.days.includes(wd)?'  •  class day':''}</option>`).join('')}</select></label>
+    ${ui.date!==today?'<button class="btn" data-act="go-today">Back to today</button>':''}</div>
+    <div class="sub">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · ${scheduled?'Regular class day':'<span class="warn">Not a usual day for this batch</span>'}${b.time?' · '+esc(b.time):''}</div>`;
+  if(!list.length)return h+empty('No students in this batch yet','','<button class="btn primary" data-act="student-new">Add a student</button>');
+  const n=list.filter(s=>present.has(s.id)).length;
+  h+=`<div class="countrow"><div class="count"><b>${n}</b> / ${list.length} present ${rec?'':'<span class="pill">not marked yet</span>'}</div>
+    <div class="row"><button class="btn" data-act="all-present">Mark all present</button>${rec?'<button class="btn ghost" data-act="clear-day">Clear</button>':''}</div></div>
+    <div class="tiles">${list.map(s=>{const on=present.has(s.id);return `<button class="tile${on?' on':''}" data-act="toggle" data-id="${s.id}" aria-pressed="${on}"><span class="av">${esc(initials(s.name))}</span><span class="nm">${esc(s.name)}</span><span class="st">${on?'✓ Present':'Tap to mark'}</span></button>`}).join('')}</div>`;
+  return h;
+}
+
+/* ---------- History ---------- */
+function viewHistory(){
+  if(!state.batches.length)return empty('No classes yet','Create a batch and mark some attendance first.','<button class="btn primary" data-act="batch-new">Create a batch</button>');
+  const seg=`<div class="seg"><button data-act="hist" data-id="classes" class="${ui.hist==='classes'?'on':''}">By class</button><button data-act="hist" data-id="student" class="${ui.hist==='student'?'on':''}">By student</button></div>`;
+  return ui.hist==='student'?histStudent(seg):histClasses(seg);
+}
+function classDates(bid,m){
+  const b=batchById(bid), set=new Set(), start=parse(m+'-01');
+  for(let d=new Date(start);d.getMonth()===start.getMonth();d.setDate(d.getDate()+1)){const s=ymd(d);if(s>today)break;if(b.days.includes(d.getDay()))set.add(s)}
+  Object.keys(state.attendance).forEach(k=>{const [d,id]=k.split('|');if(id===bid&&d.slice(0,7)===m)set.add(d)});
+  return [...set].sort().reverse();
+}
+function histClasses(seg){
+  if(!batchById(ui.hBatch))ui.hBatch=batchById(ui.batch)?ui.batch:state.batches[0].id;
+  const bid=ui.hBatch, dates=classDates(bid,ui.month);
+  let held=0,sum=0,unmarked=0;
+  const items=dates.map(d=>{
+    const rec=state.attendance[d+'|'+bid], label=parse(d).toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+    if(!rec){unmarked++;return `<button class="item" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>No attendance recorded — tap to mark it, or ignore if there was no class</small></span><span class="chip up">Not marked</span><span class="chev">›</span></button>`}
+    const p=new Set(rec), roster=rosterOn(bid,d);
+    rec.forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
+    const absent=roster.filter(s=>!p.has(s.id)).sort(byName);
+    held++;if(roster.length)sum+=(roster.length-absent.length)/roster.length;
+    return `<button class="item" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>${absent.length?'Absent: '+absent.map(s=>esc(s.name)).join(', '):'Everyone present'}</small></span><span class="chip ${absent.length?'none':'ok'}">${roster.length-absent.length} / ${roster.length} present</span><span class="chev">›</span></button>`;
+  });
+  let h=`<div class="bar">${seg}<label class="field grow"><span>Batch</span><select id="h-batch">${state.batches.map(b=>`<option value="${b.id}"${b.id===bid?' selected':''}>${esc(b.name)}</option>`).join('')}</select></label>${monthInput('h-month')}</div>
+    <div class="stats"><div class="stat"><small>Classes held</small><b>${held}</b></div><div class="stat ok"><small>Average attendance</small><b>${held?Math.round(sum/held*100)+'%':'—'}</b></div>${unmarked?`<div class="stat up"><small>Not marked</small><b>${unmarked}</b></div>`:''}</div>`;
+  return h+(items.length?'<div class="list">'+items.join('')+'</div>':empty('No classes this month','',''));
+}
+function histStudent(seg){
+  const all=[...state.students].sort(byName);
+  const bar=sel=>`<div class="bar">${seg}${sel||''}${monthInput('h-month')}</div>`;
+  if(!all.length)return bar()+empty('No students yet','','<button class="btn primary" data-act="student-new">Add a student</button>');
+  if(!studentById(ui.hStudent))ui.hStudent=(all.find(s=>s.active)||all[0]).id;
+  const s=studentById(ui.hStudent), b=batchById(s.batchId), m=ui.month;
+  const opts=g=>g.map(x=>`<option value="${x.id}"${x.id===s.id?' selected':''}>${esc(x.name)}</option>`).join('');
+  const arch=all.filter(x=>!x.active);
+  const sel=`<label class="field grow"><span>Student</span><select id="h-student">${opts(all.filter(x=>x.active))}${arch.length?`<optgroup label="Archived">${opts(arch)}</optgroup>`:''}</select></label>`;
+  const ended=d=>(s.joined&&d<s.joined)||d>today||(!s.active&&s.left&&d>s.left);
+
+  // calendar
+  const start=parse(m+'-01'), n=new Date(start.getFullYear(),start.getMonth()+1,0).getDate(), lead=(start.getDay()+6)%7;
+  let att=0,miss=0,nm=0;const cells=[];
+  for(let i=0;i<lead;i++)cells.push('<div></div>');
+  for(let i=1;i<=n;i++){
+    const d=m+'-'+pad(i), wd=parse(d).getDay();
+    const went=Object.keys(state.attendance).some(k=>k.startsWith(d+'|')&&state.attendance[k].includes(s.id));
+    let c='off',mk='';
+    if(went){c='att';mk='✓';att++}
+    else if(ended(d)){}
+    else if(state.attendance[d+'|'+s.batchId]){c='miss';mk='✗';miss++}
+    else if(b&&b.days.includes(wd)){c='nm';mk='?';nm++}
+    cells.push(`<div class="d ${c}${d===today?' today':''}" title="${d}">${i}${mk?`<i>${mk}</i>`:''}</div>`);
+  }
+  // overall since joining
+  let oA=0,oH=0;
+  Object.keys(state.attendance).forEach(k=>{const [d,bid]=k.split('|');const was=state.attendance[k].includes(s.id);
+    if(was){oA++;oH++}else if(bid===s.batchId&&!ended(d))oH++});
+
+  // fees
+  const st=feeStatus(s,m), over=overdueMonths(s,thisMonth);
+  const curSt=feeStatus(s,thisMonth);
+  const feeRow=(mm,chip)=>`<div class="item"><span class="grow"><b>${monthLabel(mm)}</b><small>${rupee(s.fee)} · due ${fmtDate(dueDate(mm))}</small></span><span class="actions">${chip}${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${mm}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${mm}">Mark paid</button></span></div>`;
+  const pays=state.payments.filter(p=>p.studentId===s.id).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,6);
+  const fees=[];
+  over.forEach(mm=>fees.push(feeRow(mm,'<span class="chip due">Overdue</span>')));
+  if(curSt.k==='upcoming')fees.push(feeRow(thisMonth,feeChip(curSt)));
+  const fNote=curSt.k==='notyet'?`<p class="hint">First fee due on ${fmtDate(dueDate(curSt.f))}.</p>`:'';
+
+  return bar(sel)+`<div class="card"><div class="profile"><span class="av">${esc(initials(s.name))}</span><div class="grow"><b style="font-size:18px">${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}
+      <small>${esc(b?b.name:'No batch')}${b&&b.time?' · '+esc(b.time):''} · joined ${fmtDate(s.joined)||'—'}${s.phone?' · '+esc(s.phone):''}</small>${s.notes?`<small>${esc(s.notes)}</small>`:''}</div>
+      <button class="btn" data-act="student-edit" data-id="${s.id}">Edit details</button></div></div>
+    <div class="stats"><div class="stat ok"><small>${monthLabel(m)}</small><b>${att} / ${att+miss}</b><small>classes attended</small></div>
+      <div class="stat"><small>Since joining</small><b>${oH?Math.round(oA/oH*100)+'%':'—'}</b><small>${oA} of ${oH} classes</small></div>
+      <div class="stat${st.k==='overdue'?' due':st.k==='paid'?' ok':''}"><small>Fee for ${shortMonth(m)}</small><b style="font-size:18px;margin-top:4px">${feeChip(st)}</b>${st.p?`<small>${rupee(st.p.amount)} · ${fmtDate(st.p.date)}</small>`:''}</div></div>
+    <div class="card"><h2>Attendance — ${monthLabel(m)}</h2>
+      <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="h">${x}</div>`).join('')}${cells.join('')}</div>
+      <div class="legend"><span class="la">Attended (${att})</span><span class="lm">Missed (${miss})</span>${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
+    <div class="card"><h2>Fees</h2>${fNote}${fees.length?'<div class="list">'+fees.join('')+'</div>':(Number(s.fee)>0&&curSt.k!=='notyet'?'<p class="hint">All fees paid up to date.</p>':'')}
+      ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span><button class="btn ghost sm" data-act="pay-undo" data-id="${p.id}">Undo</button></div>`).join('')}</div>`:''}</div>`;
+}
+
+/* ---------- Students ---------- */
+function viewStudents(){
+  const q=ui.search.toLowerCase().trim();
+  const list=state.students.filter(s=>(ui.showArchived||s.active)&&(!q||s.name.toLowerCase().includes(q)||(s.phone||'').includes(q))).sort(byName);
+  const active=state.students.filter(s=>s.active).length;
+  let h=`<div class="bar"><label class="field grow"><span>Search (${active} active)</span><input id="s-search" type="search" value="${esc(ui.search)}" placeholder="Name or phone"></label>
+    <label class="check"><input type="checkbox" id="s-arch"${ui.showArchived?' checked':''}> Show archived</label>
+    <button class="btn primary" data-act="student-new">+ Add student</button></div>`;
+  if(!list.length)return h+empty(q?'No matches':'No students yet',q?'':'Add your students and assign each to a batch.','');
+  return h+'<p class="hint">Tap a student to see their attendance and fees.</p><div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}<small>${esc(b?b.name:'No batch')} · ${rupee(s.fee)}/month${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">${o} month${o>1?'s':''} due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
+}
+
+/* ---------- Fees ---------- */
+function viewFees(){
+  const m=ui.month, prev=addMonth(m,-1);
+  const order={overdue:0,upcoming:1,notyet:2,paid:3,free:4,na:5};
+  const rows=state.students.filter(s=>paymentFor(s.id,m)||billable(s,m)||(s.active&&s.joined&&s.joined.slice(0,7)===m)||(s.active&&!(Number(s.fee)>0)))
+    .map(s=>({s,st:feeStatus(s,m),earlier:overdueMonths(s,prev).length})).sort((a,b)=>order[a.st.k]-order[b.st.k]||byName(a.s,b.s));
+  let paid=0,od=0,odN=0,up=0,upN=0;
+  rows.forEach(({s,st})=>{if(st.k==='paid')paid+=Number(st.p.amount)||0;else if(st.k==='overdue'){od+=Number(s.fee);odN++}else if(st.k==='upcoming'){up+=Number(s.fee);upN++}});
+  let h=`<div class="bar">${monthInput('f-month')}<p class="hint grow" style="margin:0 0 12px">Fees for ${monthLabel(m)} are due on <b>${fmtDate(dueDate(m))}</b>.</p></div>
+    <div class="stats"><div class="stat ok"><small>Collected</small><b>${rupee(paid)}</b></div>
+    ${odN?`<div class="stat due"><small>Overdue · ${odN} student${odN===1?'':'s'}</small><b>${rupee(od)}</b></div>`:''}
+    ${upN?`<div class="stat up"><small>Due ${dayMonth(dueDate(m))} · ${upN} student${upN===1?'':'s'}</small><b>${rupee(up)}</b></div>`:''}</div>`;
+  if(!rows.length)return h+empty('No students for this month','','');
+  return h+'<div class="list">'+rows.map(({s,st,earlier})=>{
+    const b=batchById(s.batchId), unpaid=st.k==='overdue'||st.k==='upcoming';
+    const right=feeChip(st)+(st.k==='paid'?`<button class="btn ghost sm" data-act="pay-undo" data-id="${st.p.id}">Undo</button>`:'')
+      +(unpaid?`${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${m}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${m}">Mark paid</button>`:'');
+    return `<div class="item"><span class="av">${esc(initials(s.name))}</span><span class="grow"><button class="link" data-act="open-student" data-id="${s.id}">${esc(s.name)}</button><small>${esc(b?b.name:'')} · fee ${rupee(s.fee)}${st.k==='notyet'?` · joined ${fmtDate(s.joined)}`:''}</small>${st.p?`<small class="okt">${rupee(st.p.amount)} received ${fmtDate(st.p.date)} · ${esc(st.p.mode)}</small>`:''}${earlier?`<button class="link u" data-act="open-student" data-id="${s.id}">+ ${earlier} earlier month${earlier>1?'s':''} unpaid</button>`:''}</span><span class="actions">${right}</span></div>`;
+  }).join('')+'</div>';
+}
+
+/* ---------- Reports ---------- */
+function monthData(m){
+  const keys=Object.keys(state.attendance).filter(k=>k.slice(0,7)===m);
+  const held={};keys.forEach(k=>{const b=k.split('|')[1];held[b]=(held[b]||0)+1});
+  const rows=state.students.filter(s=>s.active||paymentFor(s.id,m)||keys.some(k=>state.attendance[k].includes(s.id))).sort(byName).map(s=>{
+    const att=keys.filter(k=>state.attendance[k].includes(s.id)).length;
+    const h=keys.filter(k=>{const [d,b]=k.split('|');return state.attendance[k].includes(s.id)||(b===s.batchId&&(!s.joined||d>=s.joined))}).length;
+    return {s,att,h,pct:h?Math.round(att/h*100):null,st:feeStatus(s,m)};
+  });
+  return {held,rows};
+}
+const statusText={paid:'Paid',free:'No fee',na:'',notyet:'Not yet due',overdue:'Overdue',upcoming:'Due'};
+function viewReports(){
+  const m=ui.month,{held,rows}=monthData(m);
+  let h=`<div class="bar">${monthInput('r-month')}<span class="grow"></span>
+    <button class="btn" data-act="csv-month">Export month (CSV)</button><button class="btn ghost" data-act="csv-all">Full register (CSV)</button></div>`;
+  if(state.batches.length)h+=`<div class="stats">${state.batches.map(b=>`<div class="stat"><small>${esc(b.name)}</small><b>${held[b.id]||0}</b><small>classes held</small></div>`).join('')}</div>`;
+  if(!rows.length)return h+empty('Nothing to report yet','','');
+  return h+`<div class="tablewrap"><table><thead><tr><th>Student</th><th>Batch</th><th class="num">Attended</th><th>Attendance</th><th>Fee</th></tr></thead><tbody>${rows.map(r=>{const b=batchById(r.s.batchId);return `<tr><td><button class="link" data-act="open-student" data-id="${r.s.id}">${esc(r.s.name)}</button></td><td>${esc(b?b.name:'')}</td><td class="num">${r.att} / ${r.h}</td><td>${r.pct==null?'—':`${r.pct}%<div class="pct"><i style="width:${r.pct}%"></i></div>`}</td><td>${feeChip(r.st)}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+/* ---------- Settings ---------- */
+function viewSettings(){
+  const sample=state.students.find(s=>s.active)||{name:'Ananya',fee:state.defaultFee};
+  return `<div class="card"><h2>Batches</h2><div class="list">${state.batches.map(b=>`<button class="item" data-act="batch-edit" data-id="${b.id}"><span class="grow"><b>${esc(b.name)}</b><small>${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'No days set'}${b.time?' · '+esc(b.time):''} · ${studentsIn(b.id).length} students</small></span><span class="chev">›</span></button>`).join('')||'<p class="hint">No batches yet.</p>'}</div>
+    <div style="margin-top:12px"><button class="btn primary" data-act="batch-new">+ Add batch</button></div></div>
+  <div class="card"><h2>Fees</h2>
+    <p class="hint">Fees are monthly. A new student's first fee is due on the first due date after they join (e.g. joining on the 20th → first fee next month).</p>
+    <div class="bar"><label class="field"><span>Monthly fee for new students (₹)</span><input id="set-fee" type="number" min="0" step="50" inputmode="numeric" value="${state.defaultFee}"></label>
+    <label class="field"><span>Due day of month</span><input id="set-due" type="number" min="1" max="28" inputmode="numeric" value="${state.dueDay}"></label></div>
+    <button class="btn" data-act="apply-fee">Apply ${rupee(state.defaultFee)} to all active students</button></div>
+  <div class="card"><h2>WhatsApp reminder message</h2>
+    <p class="hint">These words are filled in automatically: <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{due}</code></p>
+    <textarea id="set-msg" rows="4">${esc(state.waTemplate)}</textarea>
+    <div class="preview" id="msg-preview">${esc(fillMsg(sample,thisMonth))}</div>
+    <button class="btn ghost sm" data-act="reset-msg">Reset to default</button></div>
+  <div class="card"><h2>Backup</h2><p class="hint">Everything is stored only on this device. Download a backup every week and keep it in OneDrive or Google Drive. To move to a new device, restore that file there.</p>
+    <p>Last backup: <b>${state.lastBackup?fmtDate(state.lastBackup):'never'}</b></p>
+    <div class="row"><button class="btn primary" data-act="backup">Download backup</button><label class="btn">Restore from backup<input type="file" id="import-file" accept=".json,application/json" hidden></label></div></div>
+  <div class="card"><h2>Data</h2><p class="hint">${state.students.length} students · ${Object.keys(state.attendance).length} classes recorded · ${state.payments.length} payments. Works offline.</p>
+    <div class="row">${state.students.length?'':'<button class="btn" data-act="demo">Load sample data</button>'}<button class="btn danger" data-act="wipe">Erase all data</button></div></div>`;
+}
+
+const VIEWS={today:viewToday,history:viewHistory,students:viewStudents,fees:viewFees,reports:viewReports,settings:viewSettings};
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
+  document.getElementById('main').innerHTML=backupBanner()+VIEWS[tab]();
+}
+
+/* ---------- dialogs ---------- */
+const dlg=document.getElementById('dlg');
+let dlgSubmit=null;
+function openDlg(html,onSubmit){dlg.innerHTML=`<form>${html}</form>`;dlgSubmit=onSubmit;dlg.showModal()}
+dlg.addEventListener('submit',e=>{e.preventDefault();if(dlgSubmit&&dlgSubmit(new FormData(e.target))!==false){dlg.close();save();render()}});
+const cancelBtns=label=>`<button type="button" class="btn ghost" data-act="dlg-close">Cancel</button><button class="btn primary">${label}</button>`;
+
+function batchForm(b){
+  const isNew=!b; b=b||{name:'',time:'',days:[]};
+  openDlg(`<h2>${isNew?'New batch':'Edit batch'}</h2>
+    <label class="field"><span>Batch name</span><input name="name" required value="${esc(b.name)}" placeholder="e.g. Beginners" autocomplete="off"></label>
+    <div class="field"><span>Class days</span><div class="days">${WEEK.map(d=>`<label><input type="checkbox" name="days" value="${d}"${b.days.includes(d)?' checked':''}><span>${DAYS[d]}</span></label>`).join('')}</div></div>
+    <label class="field"><span>Time (optional)</span><input name="time" value="${esc(b.time)}" placeholder="e.g. 5:00 – 6:30 pm"></label>
+    <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn danger sm" data-act="batch-delete" data-id="${b.id}">Delete</button></span>`}${cancelBtns(isNew?'Create':'Save')}</div>`,
+  fd=>{const d={name:fd.get('name').trim(),time:fd.get('time').trim(),days:fd.getAll('days').map(Number)};
+    if(!d.name)return false;
+    if(isNew){state.batches.push({id:uid(),...d});ui.batch=defaultBatch(ui.date)}else Object.assign(b,d);});
+}
+
+const firstDueText=j=>j?`First fee due on ${fmtDate(dueDate(firstMonth({joined:j})))}`:'';
+function studentForm(s){
+  if(!state.batches.length){toast('Create a batch first');tab='settings';render();return}
+  const isNew=!s; s=s||{name:'',phone:'',batchId:ui.batch||state.batches[0].id,joined:today,fee:state.defaultFee,notes:'',active:true};
+  openDlg(`<h2>${isNew?'Add student':'Edit student'}</h2>
+    <label class="field"><span>Name</span><input name="name" required value="${esc(s.name)}" autocomplete="off"></label>
+    <label class="field"><span>Phone — student or parent (for WhatsApp reminders)</span><input name="phone" type="tel" value="${esc(s.phone)}" placeholder="98765 43210"></label>
+    <label class="field"><span>Batch</span><select name="batchId">${state.batches.map(b=>`<option value="${b.id}"${b.id===s.batchId?' selected':''}>${esc(b.name)}</option>`).join('')}</select></label>
+    <div class="bar" style="margin:0"><label class="field grow"><span>Monthly fee (₹)</span><input name="fee" type="number" min="0" step="50" inputmode="numeric" value="${s.fee}"></label>
+    <label class="field grow"><span>Joined on</span><input name="joined" type="date" required value="${s.joined||''}"></label></div>
+    <p class="hint" id="first-due" style="margin:-6px 0 0">${firstDueText(s.joined)}</p>
+    <label class="field"><span>Notes (optional)</span><textarea name="notes" rows="2">${esc(s.notes)}</textarea></label>
+    <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn sm" data-act="student-archive" data-id="${s.id}">${s.active?'Archive':'Restore'}</button><button type="button" class="btn danger sm" data-act="student-delete" data-id="${s.id}">Delete</button></span>`}${cancelBtns(isNew?'Add':'Save')}</div>`,
+  fd=>{const d={name:fd.get('name').trim(),phone:fd.get('phone').trim(),batchId:fd.get('batchId'),fee:Number(fd.get('fee')||0),joined:fd.get('joined'),notes:fd.get('notes').trim()};
+    if(!d.name)return false;
+    if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}else Object.assign(s,d);});
+}
+
+function payForm(sid,m){
+  const s=studentById(sid);
+  openDlg(`<h2>Fee received</h2><p class="hint">${esc(s.name)} · ${monthLabel(m)}</p>
+    <label class="field"><span>Amount (₹)</span><input name="amount" type="number" min="0" inputmode="numeric" required value="${s.fee}"></label>
+    <label class="field"><span>Received on</span><input name="date" type="date" required value="${today}"></label>
+    <label class="field"><span>Mode</span><select name="mode">${['UPI','Cash','Bank transfer','Other'].map(x=>`<option${x===ui.lastMode?' selected':''}>${x}</option>`).join('')}</select></label>
+    <div class="dlg-actions">${cancelBtns('Save payment')}</div>`,
+  fd=>{ui.lastMode=fd.get('mode');state.payments.push({id:uid(),studentId:sid,month:m,amount:Number(fd.get('amount')),date:fd.get('date'),mode:fd.get('mode')});toast('Payment saved')});
+}
+
+/* ---------- files ---------- */
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+const csv=rows=>'﻿'+rows.map(r=>r.map(v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n');
+
+/* ---------- sample data ---------- */
+function loadDemo(){
+  const b1={id:uid(),name:'Beginners',days:[1,4],time:'5:00 – 6:00 pm'}, b2={id:uid(),name:'Seniors',days:[3,6],time:'6:00 – 7:30 pm'};
+  const start=addMonth(thisMonth,-3)+'-01';
+  const mk=(name,b,phone,joined)=>({id:uid(),name,phone,batchId:b.id,fee:1000,joined:joined||start,notes:'',active:true});
+  const st=[mk('Ananya Rao',b1,'9876500001'),mk('Diya Menon',b1,'9876500002'),mk('Ishita Reddy',b1,''),mk('Kavya Nair',b1,'9876500004'),mk('Meera Pillai',b1,'9876500005'),
+    mk('Sneha Varma',b2,'9876500006'),mk('Lakshmi Iyer',b2,'9876500007'),mk('Priya Krishnan',b2,''),mk('Tara Joshi',b2,'9876500009',thisMonth+'-'+pad(Math.min(20,parse(today).getDate())))];
+  state.batches=[b1,b2];state.students=st;state.attendance={};state.payments=[];
+  let skipped=false;
+  const days=[];for(let d=parse(addMonth(thisMonth,-2)+'-01');ymd(d)<=today;d.setDate(d.getDate()+1))days.push(new Date(d));
+  days.reverse().forEach(d=>{const s=ymd(d);[b1,b2].forEach(b=>{if(!b.days.includes(d.getDay()))return;
+    if(b===b2&&!skipped&&s<today){skipped=true;return}
+    state.attendance[s+'|'+b.id]=st.filter(x=>x.batchId===b.id&&x.joined<=s&&Math.random()<.85).map(x=>x.id)})});
+  st.forEach((s,i)=>{for(let m=firstMonth(s);m<=thisMonth;m=addMonth(m,1)){
+    if(i===3&&m>=addMonth(thisMonth,-1))continue;
+    if(m===thisMonth&&i%3===0)continue;
+    state.payments.push({id:uid(),studentId:s.id,month:m,amount:s.fee,date:m+'-'+pad(5+i%8),mode:i%2?'Cash':'UPI'})}});
+  ui.batch=null;ui.hStudent=null;save();render();toast('Sample data loaded');
+}
+
+/* ---------- actions ---------- */
+const ACT={
+  tab:id=>{tab=id;render();window.scrollTo(0,0)},
+  'dlg-close':()=>dlg.close(),
+  'go-today':()=>{ui.date=today;ui.batch=defaultBatch(today);render()},
+  hist:id=>{ui.hist=id;render()},
+  'open-class':d=>{ui.date=d;ui.batch=ui.hBatch;tab='today';render();window.scrollTo(0,0)},
+  'open-student':id=>{ui.hist='student';ui.hStudent=id;tab='history';render();window.scrollTo(0,0)},
+  'batch-new':()=>batchForm(),
+  'batch-edit':id=>batchForm(batchById(id)),
+  'batch-delete':id=>{
+    if(studentsIn(id,true).length){toast('Move or delete this batch’s students first');return}
+    if(!confirm('Delete this batch?'))return;
+    state.batches=state.batches.filter(b=>b.id!==id);
+    Object.keys(state.attendance).forEach(k=>{if(k.endsWith('|'+id))delete state.attendance[k]});
+    ui.batch=null;ui.hBatch=null;dlg.close();save();render();
+  },
+  'student-new':()=>studentForm(),
+  'student-edit':id=>studentForm(studentById(id)),
+  'student-archive':id=>{const s=studentById(id);s.active=!s.active;if(s.active)delete s.left;else s.left=today;dlg.close();save();render();toast(s.name+(s.active?' restored':' archived — history kept'))},
+  'student-delete':id=>{
+    const s=studentById(id);
+    if(!confirm(`Delete ${s.name} permanently?\n\nTheir attendance and payment history will be removed too. Use “Archive” instead if they have just left the class.`))return;
+    state.students=state.students.filter(x=>x.id!==id);
+    for(const k in state.attendance)state.attendance[k]=state.attendance[k].filter(x=>x!==id);
+    state.payments=state.payments.filter(p=>p.studentId!==id);
+    if(ui.hStudent===id){ui.hStudent=null;if(tab==='history')tab='students'}
+    dlg.close();save();render();
+  },
+  toggle:id=>{
+    const k=ui.date+'|'+ui.batch, a=state.attendance[k]||[], i=a.indexOf(id);
+    if(i>=0)a.splice(i,1);else a.push(id);
+    state.attendance[k]=a;save();render();
+  },
+  'all-present':()=>{state.attendance[ui.date+'|'+ui.batch]=rosterOn(ui.batch,ui.date).map(s=>s.id);save();render()},
+  'clear-day':()=>{if(!confirm('Clear attendance for this class? (Use this if the class did not happen.)'))return;delete state.attendance[ui.date+'|'+ui.batch];save();render()},
+  pay:(id,el)=>payForm(id,el.dataset.m||ui.month),
+  'pay-undo':id=>{if(!confirm('Remove this payment?'))return;state.payments=state.payments.filter(p=>p.id!==id);save();render()},
+  remind:(id,el)=>{
+    const s=studentById(id);let n=(s.phone||'').replace(/\D/g,'');if(n.length===10)n='91'+n;
+    window.open('https://wa.me/'+n+'?text='+encodeURIComponent(fillMsg(s,el.dataset.m||ui.month)),'_blank');
+  },
+  'apply-fee':()=>{
+    const act=state.students.filter(s=>s.active);
+    if(!act.length){toast('No active students');return}
+    if(!confirm(`Set the monthly fee to ${rupee(state.defaultFee)} for all ${act.length} active students?\n\nPayments already recorded are not changed.`))return;
+    act.forEach(s=>s.fee=state.defaultFee);save();render();toast('Fee updated for '+act.length+' students');
+  },
+  'reset-msg':()=>{state.waTemplate=DEFAULT_MSG;save();render();toast('Message reset')},
+  'csv-month':()=>{
+    const m=ui.month,{rows}=monthData(m);
+    download(`mudra-${m}.csv`,csv([['Student','Phone','Batch','Classes held','Attended','Attendance %','Monthly fee','Fee status','Paid amount','Paid on','Mode'],
+      ...rows.map(r=>[r.s.name,r.s.phone,(batchById(r.s.batchId)||{}).name,r.h,r.att,r.pct??'',r.s.fee,statusText[r.st.k],r.st.p?r.st.p.amount:'',r.st.p?r.st.p.date:'',r.st.p?r.st.p.mode:''])]),'text/csv');
+  },
+  'csv-all':()=>{
+    const out=[['Date','Batch','Student','Status']];
+    Object.keys(state.attendance).sort().forEach(k=>{const [d,bid]=k.split('|'),b=batchById(bid),p=new Set(state.attendance[k]);
+      const roster=rosterOn(bid,d);state.attendance[k].forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
+      roster.sort(byName).forEach(s=>out.push([d,b?b.name:'',s.name,p.has(s.id)?'Present':'Absent']))});
+    download('mudra-attendance-register.csv',csv(out),'text/csv');
+  },
+  backup:()=>{state.lastBackup=new Date().toISOString();save();download(`mudra-backup-${today}.json`,JSON.stringify(state,null,1),'application/json');render();toast('Backup downloaded — move it to OneDrive')},
+  demo:()=>{if(state.students.length&&!confirm('Replace current data with sample data?'))return;loadDemo()},
+  wipe:()=>{if(!confirm('Erase ALL students, attendance and payments from this device?'))return;if(prompt('Type ERASE to confirm')!=='ERASE')return;state=fresh();ui.batch=null;save();render();toast('All data erased')},
+};
+
+document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;if(t.tagName==='A')e.preventDefault();const f=ACT[t.dataset.act];if(f)f(t.dataset.id,t)});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='t-date'&&t.value){ui.date=t.value;ui.batch=defaultBatch(t.value);render()}
+  else if(t.id==='t-batch'){ui.batch=t.value;render()}
+  else if(['f-month','r-month','h-month'].includes(t.id)&&t.value){ui.month=t.value;render()}
+  else if(t.id==='h-batch'){ui.hBatch=t.value;render()}
+  else if(t.id==='h-student'){ui.hStudent=t.value;render()}
+  else if(t.id==='s-arch'){ui.showArchived=t.checked;render()}
+  else if(t.id==='set-fee'){state.defaultFee=Math.max(0,Number(t.value)||0);save();render();toast('Default fee saved')}
+  else if(t.id==='set-due'){state.dueDay=Math.min(28,Math.max(1,Math.round(Number(t.value)||15)));save();render();toast('Due day saved')}
+  else if(t.id==='set-msg'){state.waTemplate=t.value.trim()||DEFAULT_MSG;save();toast('Message saved')}
+  else if(t.id==='import-file'&&t.files[0]){
+    const r=new FileReader();
+    r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.students)||!Array.isArray(d.batches))throw 0;
+      if(!confirm(`Restore backup with ${d.students.length} students? This replaces the data on this device.`))return;
+      state=Object.assign(fresh(),d);ui.batch=null;ui.hStudent=null;save();render();toast('Backup restored')}catch(_){toast('That file is not a valid backup')}};
+    r.readAsText(t.files[0]);t.value='';
+  }
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.id==='s-search'){ui.search=t.value;render();const el=document.getElementById('s-search');el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+  else if(t.id==='set-msg'){const s=state.students.find(x=>x.active)||{name:'Ananya',fee:state.defaultFee};const keep=state.waTemplate;state.waTemplate=t.value||DEFAULT_MSG;document.getElementById('msg-preview').textContent=fillMsg(s,thisMonth);state.waTemplate=keep}
+  else if(t.name==='joined'&&t.form&&t.form.closest('dialog')){const el=document.getElementById('first-due');if(el)el.textContent=firstDueText(t.value)}
+});
+
+/* ---------- start ---------- */
+(async()=>{
+  state=Object.assign(fresh(),await load()||{});
+  delete state.studio;
+  if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+  render();
+  if(location.protocol.startsWith('http')&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
