@@ -153,8 +153,8 @@ feeStatus(s,m)  = paid | free | notyet | na | overdue | upcoming
 ### Screens
 **Today** (tap to mark, change date to fix past) · **History** (by class: absentees and "not marked";
 by student: calendar, %, unpaid months) · **Students** · **Fees** (Overdue → Due → First fee → Paid;
-Mark paid / Undo / Remind) · **Reports** (CSV export) · **Settings** (account, batches, fee, due day,
-WhatsApp template, backup/restore). "Load sample data" appears **only in TEST**.
+To collect / Paid sections; Mark paid, Remind, small undo link) · **Settings** (batches, fee, due day,
+WhatsApp message, Monthly report + CSV, backup, account; Restore/Erase tucked under *Advanced*). "Load sample data" appears **only in TEST**.
 
 The header shows a gold **TEST** tag in the test environment, so you never confuse it with prod.
 
@@ -258,6 +258,7 @@ git checkout main && git merge dev && git push   # → deploys to PROD
 | Separate data per device | browser-only storage | Firestore with offline cache |
 | Write loops / extra writes risk | Firestore returns fields in a different order | diff uses key-sorted JSON |
 | Edit lost if a sync arrives mid-form | snapshot replaces objects | forms re-look-up by `id` on submit |
+| Too busy for a non-technical user | backup nag on every page, 6 tabs, big Undo buttons, risky actions in plain view | 5 tabs (Reports moved into Settings), no nag, grouped Fees, light undo link, Advanced section |
 | Claude couldn't create the repo / enable Pages | session API limits | done manually. Claude GitHub App installed for pushes |
 
 ---

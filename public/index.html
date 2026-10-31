@@ -133,6 +133,16 @@ dialog{max-height:calc(100dvh - 32px);overflow:auto}
   .banner{font-size:14px}
 }
 nav[hidden]{display:none!important}
+.field.month{min-width:190px;flex:0 1 220px}
+.sect{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 2px 8px}
+.sect:first-of-type{margin-top:6px}
+.item.compact{padding:10px 14px}
+.item.compact .actions{width:auto!important;margin-left:auto!important}
+.back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;font-size:15px}
+details.adv{margin-top:4px}details.adv summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0;list-style:none}
+details.adv summary::before{content:"▸ ";}details.adv[open] summary::before{content:"▾ ";}
+details.adv summary::-webkit-details-marker{display:none}
+.rowline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .gate{max-width:420px;margin:48px auto;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:32px 22px}
 .gate img{width:72px;height:72px;border-radius:16px}
 .gate h2{margin:14px 0 6px}.gate p{color:var(--muted);margin:0 0 18px}
@@ -148,7 +158,6 @@ nav[hidden]{display:none!important}
   <button data-act="tab" data-id="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/></svg><span>History</span></button>
   <button data-act="tab" data-id="students"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 20v-2a4 4 0 0 0-3-3.9M16 2.1a4 4 0 0 1 0 7.8"/></svg><span>Students</span></button>
   <button data-act="tab" data-id="fees"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 8h12M6 13l8.5 8M6 13h3a5 5 0 0 0 0-10"/></svg><span>Fees</span></button>
-  <button data-act="tab" data-id="reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18M8 17v-5M13 17V8M18 17v-9"/></svg><span>Reports</span></button>
   <button data-act="tab" data-id="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span></button>
 </nav>
 <main id="main"></main>
@@ -340,7 +349,7 @@ function backupBanner(){
   if(lb&&days<30)return'';
   return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Your data is in the cloud, but an occasional backup file is a good extra safety copy.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
 }
-const monthInput=id=>`<label class="field"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
+const monthInput=id=>`<label class="field month"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
 const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&s.left>=d)));
 
 /* ---------- Today ---------- */
@@ -355,7 +364,7 @@ function viewToday(){
     <label class="field"><span>Date</span><input type="date" id="t-date" value="${ui.date}" max="${today}"></label>
     <label class="field grow"><span>Batch</span><select id="t-batch">${state.batches.map(x=>`<option value="${x.id}"${x.id===b.id?' selected':''}>${esc(x.name)}${x.days.includes(wd)?'  •  class day':''}</option>`).join('')}</select></label>
     ${ui.date!==today?'<button class="btn" data-act="go-today">Back to today</button>':''}</div>
-    <div class="sub">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · ${scheduled?'Regular class day':'<span class="warn">Not a usual day for this batch</span>'}${b.time?' · '+esc(b.time):''}</div>`;
+    <div class="sub">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · ${scheduled?'Class day':`${esc(b.name)} usually meets ${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'—'}`}${b.time?' · '+esc(b.time):''}</div>`;
   if(!list.length)return h+empty('No students in this batch yet','','<button class="btn primary" data-act="student-new">Add a student</button>');
   const n=list.filter(s=>present.has(s.id)).length;
   h+=`<div class="countrow"><div class="count"><b>${n}</b> / ${list.length} present ${rec?'':'<span class="pill">not marked yet</span>'}</div>
@@ -433,50 +442,53 @@ function histStudent(seg){
   if(curSt.k==='upcoming')fees.push(feeRow(thisMonth,feeChip(curSt)));
   const fNote=curSt.k==='notyet'?`<p class="hint">First fee due on ${fmtDate(dueDate(curSt.f))}.</p>`:'';
 
-  return bar(sel)+`<div class="card"><div class="profile"><span class="av">${esc(initials(s.name))}</span><div class="grow"><b style="font-size:18px">${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}
-      <small>${esc(b?b.name:'No batch')}${b&&b.time?' · '+esc(b.time):''} · joined ${fmtDate(s.joined)||'—'}${s.phone?' · '+esc(s.phone):''}</small>${s.notes?`<small>${esc(s.notes)}</small>`:''}</div>
-      <button class="btn" data-act="student-edit" data-id="${s.id}">Edit details</button></div></div>
+  return bar(sel)+`<div class="card"><div class="profile"><span class="av">${esc(initials(s.name))}</span><div class="grow"><div class="rowline"><b style="font-size:18px">${esc(s.name)}</b>${s.active?'':'<span class="pill">archived</span>'}<button class="btn sm" style="margin-left:auto" data-act="student-edit" data-id="${s.id}">Edit</button></div>
+      <small>${esc(b?b.name:'No batch')}${b&&b.time?' · '+esc(b.time):''}</small><small>Joined ${fmtDate(s.joined)||'—'}${s.phone?' · 📞 '+esc(s.phone):''}</small>${s.notes?`<small>${esc(s.notes)}</small>`:''}</div></div></div>
     <div class="stats"><div class="stat ok"><small>${monthLabel(m)}</small><b>${att} / ${att+miss}</b><small>classes attended</small></div>
       <div class="stat"><small>Since joining</small><b>${oH?Math.round(oA/oH*100)+'%':'—'}</b><small>${oA} of ${oH} classes</small></div>
-      <div class="stat${st.k==='overdue'?' due':st.k==='paid'?' ok':''}"><small>Fee for ${shortMonth(m)}</small><b style="font-size:18px;margin-top:4px">${feeChip(st)}</b>${st.p?`<small>${rupee(st.p.amount)} · ${fmtDate(st.p.date)}</small>`:''}</div></div>
+</div>
     <div class="card"><h2>Attendance — ${monthLabel(m)}</h2>
       <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="h">${x}</div>`).join('')}${cells.join('')}</div>
       <div class="legend"><span class="la">Attended (${att})</span><span class="lm">Missed (${miss})</span>${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
     <div class="card"><h2>Fees</h2>${fNote}${fees.length?'<div class="list">'+fees.join('')+'</div>':(Number(s.fee)>0&&curSt.k!=='notyet'?'<p class="hint">All fees paid up to date.</p>':'')}
-      ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span><button class="btn ghost sm" data-act="pay-undo" data-id="${p.id}">Undo</button></div>`).join('')}</div>`:''}</div>`;
+      ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item compact"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span><span class="chip ok">Paid</span></div>`).join('')}</div>`:''}</div>`;
 }
 
 /* ---------- Students ---------- */
 function viewStudents(){
   const q=ui.search.toLowerCase().trim();
+  const arch=state.students.filter(s=>!s.active).length;
   const list=state.students.filter(s=>(ui.showArchived||s.active)&&(!q||s.name.toLowerCase().includes(q)||(s.phone||'').includes(q))).sort(byName);
-  const active=state.students.filter(s=>s.active).length;
-  let h=`<div class="bar"><label class="field grow"><span>Search (${active} active)</span><input id="s-search" type="search" value="${esc(ui.search)}" placeholder="Name or phone"></label>
-    <label class="check"><input type="checkbox" id="s-arch"${ui.showArchived?' checked':''}> Show archived</label>
+  let h=`<div class="bar"><input class="grow" id="s-search" type="search" value="${esc(ui.search)}" placeholder="🔍  Search students" aria-label="Search students" style="flex:1 1 180px">
     <button class="btn primary" data-act="student-new">+ Add student</button></div>`;
-  if(!list.length)return h+empty(q?'No matches':'No students yet',q?'':'Add your students and assign each to a batch.','');
-  return h+'<p class="hint">Tap a student to see their attendance and fees.</p><div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}<small>${esc(b?b.name:'No batch')} · ${rupee(s.fee)}/month${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">${o} month${o>1?'s':''} due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
+  if(!list.length)h+=empty(q?'No matches':'No students yet',q?'':'Add your students and choose their batch.','');
+  else h+='<div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}<small>${esc(b?b.name:'No batch')}${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">Fee due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
+  if(arch)h+=`<p style="text-align:center;margin-top:16px"><button class="link u" data-act="toggle-arch">${ui.showArchived?'Hide':'Show'} past students (${arch})</button></p>`;
+  return h;
 }
 
 /* ---------- Fees ---------- */
 function viewFees(){
   const m=ui.month, prev=addMonth(m,-1);
-  const order={overdue:0,upcoming:1,notyet:2,paid:3,free:4,na:5};
-  const rows=state.students.filter(s=>paymentFor(s.id,m)||billable(s,m)||(s.active&&s.joined&&s.joined.slice(0,7)===m)||(s.active&&!(Number(s.fee)>0)))
-    .map(s=>({s,st:feeStatus(s,m),earlier:overdueMonths(s,prev).length})).sort((a,b)=>order[a.st.k]-order[b.st.k]||byName(a.s,b.s));
-  let paid=0,od=0,odN=0,up=0,upN=0;
-  rows.forEach(({s,st})=>{if(st.k==='paid')paid+=Number(st.p.amount)||0;else if(st.k==='overdue'){od+=Number(s.fee);odN++}else if(st.k==='upcoming'){up+=Number(s.fee);upN++}});
-  let h=`<div class="bar">${monthInput('f-month')}<p class="hint grow" style="margin:0 0 12px">Fees for ${monthLabel(m)} are due on <b>${fmtDate(dueDate(m))}</b>.</p></div>
+  const rows=state.students.filter(s=>paymentFor(s.id,m)||billable(s,m)||(s.active&&s.joined&&s.joined.slice(0,7)===m))
+    .map(s=>({s,st:feeStatus(s,m),earlier:overdueMonths(s,prev).length})).sort((a,b)=>byName(a.s,b.s));
+  const due=rows.filter(r=>r.st.k==='overdue'||r.st.k==='upcoming').sort((a,b)=>(a.st.k==='overdue'?0:1)-(b.st.k==='overdue'?0:1)||byName(a.s,b.s));
+  const paidR=rows.filter(r=>r.st.k==='paid'), later=rows.filter(r=>r.st.k==='notyet');
+  const paid=paidR.reduce((t,r)=>t+(Number(r.st.p.amount)||0),0), owed=due.reduce((t,r)=>t+Number(r.s.fee),0);
+  let h=`<div class="bar">${monthInput('f-month')}</div>
+    <p class="sub" style="margin-top:-2px">Due on <b>${fmtDate(dueDate(m))}</b></p>
     <div class="stats"><div class="stat ok"><small>Collected</small><b>${rupee(paid)}</b></div>
-    ${odN?`<div class="stat due"><small>Overdue · ${odN} student${odN===1?'':'s'}</small><b>${rupee(od)}</b></div>`:''}
-    ${upN?`<div class="stat up"><small>Due ${dayMonth(dueDate(m))} · ${upN} student${upN===1?'':'s'}</small><b>${rupee(up)}</b></div>`:''}</div>`;
-  if(!rows.length)return h+empty('No students for this month','','');
-  return h+'<div class="list">'+rows.map(({s,st,earlier})=>{
-    const b=batchById(s.batchId), unpaid=st.k==='overdue'||st.k==='upcoming';
-    const right=feeChip(st)+(st.k==='paid'?`<button class="btn ghost sm" data-act="pay-undo" data-id="${st.p.id}">Undo</button>`:'')
-      +(unpaid?`${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${m}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${m}">Mark paid</button>`:'');
-    return `<div class="item"><span class="av">${esc(initials(s.name))}</span><span class="grow"><button class="link" data-act="open-student" data-id="${s.id}">${esc(s.name)}</button><small>${esc(b?b.name:'')} · fee ${rupee(s.fee)}${st.k==='notyet'?` · joined ${fmtDate(s.joined)}`:''}</small>${st.p?`<small class="okt">${rupee(st.p.amount)} received ${fmtDate(st.p.date)} · ${esc(st.p.mode)}</small>`:''}${earlier?`<button class="link u" data-act="open-student" data-id="${s.id}">+ ${earlier} earlier month${earlier>1?'s':''} unpaid</button>`:''}</span><span class="actions">${right}</span></div>`;
-  }).join('')+'</div>';
+    <div class="stat ${due.some(r=>r.st.k==='overdue')?'due':'up'}"><small>To collect · ${due.length}</small><b>${rupee(owed)}</b></div></div>`;
+  if(!rows.length)return h+empty('No fees for this month','','');
+  const row=({s,st,earlier})=>{
+    const isDue=st.k==='overdue'||st.k==='upcoming';
+    const right=isDue?`${st.k==='overdue'?feeChip(st):''}${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${m}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${m}">Mark paid</button>`:feeChip(st);
+    const sub=st.p?`<small class="okt">${rupee(st.p.amount)} · ${esc(st.p.mode)} · ${dayMonth(st.p.date)} · <button class="link u" data-act="pay-undo" data-id="${st.p.id}">undo</button></small>`
+      :st.k==='notyet'?`<small>Joined ${fmtDate(s.joined)}</small>`:`<small>${rupee(s.fee)}</small>`;
+    return `<div class="item${isDue?'':' compact'}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><button class="link" data-act="open-student" data-id="${s.id}">${esc(s.name)}</button>${sub}${earlier?`<button class="link u" data-act="open-student" data-id="${s.id}">+ ${earlier} earlier month${earlier>1?'s':''} unpaid</button>`:''}</span><span class="actions">${right}</span></div>`;
+  };
+  const sect=(t,a)=>a.length?`<div class="sect">${t} (${a.length})</div><div class="list">${a.map(row).join('')}</div>`:'';
+  return h+(due.length?'':'<p class="hint" style="text-align:center">🎉 Everyone has paid for this month.</p>')+sect('To collect',due)+sect('Paid',paidR)+sect('First fee next month',later);
 }
 
 /* ---------- Reports ---------- */
@@ -493,35 +505,39 @@ function monthData(m){
 const statusText={paid:'Paid',free:'No fee',na:'',notyet:'Not yet due',overdue:'Overdue',upcoming:'Due'};
 function viewReports(){
   const m=ui.month,{held,rows}=monthData(m);
-  let h=`<div class="bar">${monthInput('r-month')}<span class="grow"></span>
-    <button class="btn" data-act="csv-month">Export month (CSV)</button><button class="btn ghost" data-act="csv-all">Full register (CSV)</button></div>`;
+  let h=`<button class="link back" data-act="tab" data-id="settings">‹ Back to Settings</button>
+    <div class="bar">${monthInput('r-month')}</div>`;
   if(state.batches.length)h+=`<div class="stats">${state.batches.map(b=>`<div class="stat"><small>${esc(b.name)}</small><b>${held[b.id]||0}</b><small>classes held</small></div>`).join('')}</div>`;
-  if(!rows.length)return h+empty('Nothing to report yet','','');
-  return h+`<div class="tablewrap"><table><thead><tr><th>Student</th><th>Batch</th><th class="num">Attended</th><th>Attendance</th><th>Fee</th></tr></thead><tbody>${rows.map(r=>{const b=batchById(r.s.batchId);return `<tr><td><button class="link" data-act="open-student" data-id="${r.s.id}">${esc(r.s.name)}</button></td><td>${esc(b?b.name:'')}</td><td class="num">${r.att} / ${r.h}</td><td>${r.pct==null?'—':`${r.pct}%<div class="pct"><i style="width:${r.pct}%"></i></div>`}</td><td>${feeChip(r.st)}</td></tr>`}).join('')}</tbody></table></div>`;
+  if(!rows.length)h+=empty('Nothing to report yet','','');
+  else h+='<div class="list">'+rows.map(r=>`<button class="item compact" data-act="open-student" data-id="${r.s.id}"><span class="grow"><b>${esc(r.s.name)}</b><small>${esc((batchById(r.s.batchId)||{}).name||'')} · attended ${r.att} of ${r.h}</small>${r.pct==null?'':`<div class="pct" style="max-width:220px"><i style="width:${r.pct}%"></i></div>`}</span><span class="actions" style="width:auto">${r.pct==null?'':`<b>${r.pct}%</b>`}${feeChip(r.st)}</span></button>`).join('')+'</div>';
+  return h+`<div class="card" style="margin-top:16px"><h2>Download for Excel</h2><div class="row"><button class="btn" data-act="csv-month">This month (CSV)</button><button class="btn ghost" data-act="csv-all">Full attendance register (CSV)</button></div></div>`;
 }
 
 /* ---------- Settings ---------- */
 function viewSettings(){
   const sample=state.students.find(s=>s.active)||{name:'Ananya',fee:state.defaultFee};
-  return `<div class="card"><h2>Account</h2><div class="row"><span class="grow">Signed in as <b>${esc(user&&user.email||'')}</b>${IS_PROD?'':` <span class="pill">${esc(ENV.name)} environment</span>`}</span><button class="btn" data-act="signout">Sign out</button></div>
-    <p class="hint" style="margin:10px 0 0">${navigator.onLine?'✓ Online — changes sync to all your devices.':'Offline — changes are saved on this device and will sync when you reconnect.'}</p></div>
-  <div class="card"><h2>Batches</h2><div class="list">${state.batches.map(b=>`<button class="item" data-act="batch-edit" data-id="${b.id}"><span class="grow"><b>${esc(b.name)}</b><small>${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'No days set'}${b.time?' · '+esc(b.time):''} · ${studentsIn(b.id).length} students</small></span><span class="chev">›</span></button>`).join('')||'<p class="hint">No batches yet.</p>'}</div>
+  const lb=state.lastBackup;
+  return `<div class="card"><h2>Batches</h2><div class="list">${state.batches.map(b=>`<button class="item compact" data-act="batch-edit" data-id="${b.id}"><span class="grow"><b>${esc(b.name)}</b><small>${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'No days set'}${b.time?' · '+esc(b.time):''} · ${studentsIn(b.id).length} students</small></span><span class="chev">›</span></button>`).join('')||'<p class="hint">No batches yet.</p>'}</div>
     <div style="margin-top:12px"><button class="btn primary" data-act="batch-new">+ Add batch</button></div></div>
   <div class="card"><h2>Fees</h2>
-    <p class="hint">Fees are monthly. A new student's first fee is due on the first due date after they join (e.g. joining on the 20th → first fee next month).</p>
-    <div class="bar"><label class="field"><span>Monthly fee for new students (₹)</span><input id="set-fee" type="number" min="0" step="50" inputmode="numeric" value="${state.defaultFee}"></label>
-    <label class="field"><span>Due day of month</span><input id="set-due" type="number" min="1" max="28" inputmode="numeric" value="${state.dueDay}"></label></div>
-    <button class="btn" data-act="apply-fee">Apply ${rupee(state.defaultFee)} to all active students</button></div>
-  <div class="card"><h2>WhatsApp reminder message</h2>
-    <p class="hint">These words are filled in automatically: <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{due}</code></p>
-    <textarea id="set-msg" rows="4">${esc(state.waTemplate)}</textarea>
+    <div class="bar"><label class="field"><span>Monthly fee (₹)</span><input id="set-fee" type="number" min="0" step="50" inputmode="numeric" value="${state.defaultFee}"></label>
+    <label class="field"><span>Due on day</span><input id="set-due" type="number" min="1" max="28" inputmode="numeric" value="${state.dueDay}"></label></div>
+    <p class="hint">Used for new students. A student who joins after the due day starts paying next month.</p>
+    <button class="btn sm" data-act="apply-fee">Change all current students to ${rupee(state.defaultFee)}</button></div>
+  <div class="card"><h2>WhatsApp reminder</h2>
+    <textarea id="set-msg" rows="3">${esc(state.waTemplate)}</textarea>
+    <p class="hint" style="margin:8px 0 0">Preview:</p>
     <div class="preview" id="msg-preview">${esc(fillMsg(sample,thisMonth))}</div>
-    <button class="btn ghost sm" data-act="reset-msg">Reset to default</button></div>
-  <div class="card"><h2>Backup</h2><p class="hint">Your data is stored in your account and syncs to every device you sign in on. A backup file is an extra safety copy — download one now and then and keep it in OneDrive or Google Drive. Restoring a backup replaces all current data.</p>
-    <p>Last backup: <b>${state.lastBackup?fmtDate(state.lastBackup):'never'}</b></p>
-    <div class="row"><button class="btn primary" data-act="backup">Download backup</button><label class="btn">Restore from backup<input type="file" id="import-file" accept=".json,application/json" hidden></label></div></div>
-  <div class="card"><h2>Data</h2><p class="hint">${state.students.length} students · ${Object.keys(state.attendance).length} classes recorded · ${state.payments.length} payments. Works offline.</p>
-    <div class="row">${state.students.length||IS_PROD?'':'<button class="btn" data-act="demo">Load sample data</button>'}<button class="btn danger" data-act="wipe">Erase all data</button></div></div>`;
+    <p class="hint">Keep <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{due}</code> — they fill in automatically. <button class="link u" data-act="reset-msg">Reset</button></p></div>
+  <button class="item" data-act="tab" data-id="reports" style="margin-bottom:16px"><span class="grow"><b>Monthly report</b><small>Attendance % for every student, and Excel downloads</small></span><span class="chev">›</span></button>
+  <div class="card"><h2>Backup</h2><p class="hint">Your data is safe in your account and on all your devices. A backup file is an extra copy, so download one now and then.</p>
+    <div class="rowline"><button class="btn" data-act="backup">Download backup</button><span class="hint" style="margin:0">Last: ${lb?fmtDate(lb):'never'}</span></div></div>
+  <div class="card"><h2>Account</h2><div class="rowline"><span class="grow" style="min-width:0;overflow-wrap:anywhere">${esc(user&&user.email||'')}${IS_PROD?'':` <span class="pill">${esc(ENV.name)}</span>`}</span><button class="btn sm" data-act="signout">Sign out</button></div>
+    <p class="hint" style="margin:10px 0 0">${navigator.onLine?'✓ Online — changes sync to all your devices.':'Offline — changes are saved and will sync when you reconnect.'}</p>
+    <details class="adv"><summary>Advanced</summary>
+      <p class="hint">${state.students.length} students · ${Object.keys(state.attendance).length} classes · ${state.payments.length} payments</p>
+      <div class="row"><label class="btn sm">Restore from backup<input type="file" id="import-file" accept=".json,application/json" hidden></label>${state.students.length||IS_PROD?'':'<button class="btn sm" data-act="demo">Load sample data</button>'}<button class="btn sm danger" data-act="wipe">Erase all data</button></div>
+      <p class="hint" style="margin-top:8px">Restoring a backup replaces everything on all devices.</p></details></div>`;
 }
 
 const VIEWS={today:viewToday,history:viewHistory,students:viewStudents,fees:viewFees,reports:viewReports,settings:viewSettings};
@@ -536,8 +552,8 @@ function render(){
   const ready=phase==='ready';
   document.querySelector('nav').hidden=!ready;
   if(!ready){document.getElementById('main').innerHTML=gate();return}
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
-  document.getElementById('main').innerHTML=migrateBanner()+backupBanner()+VIEWS[tab]();
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===(tab==='reports'?'settings':tab)));
+  document.getElementById('main').innerHTML=migrateBanner()+VIEWS[tab]();
 }
 
 /* ---------- dialogs ---------- */
@@ -566,7 +582,7 @@ function studentForm(s){
   const isNew=!s; s=s||{name:'',phone:'',batchId:ui.batch||state.batches[0].id,joined:today,fee:state.defaultFee,notes:'',active:true};
   openDlg(`<h2>${isNew?'Add student':'Edit student'}</h2>
     <label class="field"><span>Name</span><input name="name" required value="${esc(s.name)}" autocomplete="off"></label>
-    <label class="field"><span>Phone — student or parent (for WhatsApp reminders)</span><input name="phone" type="tel" value="${esc(s.phone)}" placeholder="98765 43210"></label>
+    <label class="field"><span>Phone (student or parent) — for WhatsApp reminders</span><input name="phone" type="tel" value="${esc(s.phone)}" placeholder="98765 43210"></label>
     <label class="field"><span>Batch</span><select name="batchId">${state.batches.map(b=>`<option value="${b.id}"${b.id===s.batchId?' selected':''}>${esc(b.name)}</option>`).join('')}</select></label>
     <div class="bar" style="margin:0"><label class="field grow"><span>Monthly fee (₹)</span><input name="fee" type="number" min="0" step="50" inputmode="numeric" value="${s.fee}"></label>
     <label class="field grow"><span>Joined on</span><input name="joined" type="date" required value="${s.joined||''}"></label></div>
@@ -624,6 +640,7 @@ const ACT={
   'dlg-close':()=>dlg.close(),
   'go-today':()=>{ui.date=today;ui.batch=defaultBatch(today);render()},
   hist:id=>{ui.hist=id;render()},
+  'toggle-arch':()=>{ui.showArchived=!ui.showArchived;render()},
   'open-class':d=>{ui.date=d;ui.batch=ui.hBatch;tab='today';render();window.scrollTo(0,0)},
   'open-student':id=>{ui.hist='student';ui.hStudent=id;tab='history';render();window.scrollTo(0,0)},
   'batch-new':()=>batchForm(),
