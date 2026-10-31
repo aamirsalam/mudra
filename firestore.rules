@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Access control for Mudra.
+// Who can use the app is NOT hard-coded here. It is the `emails` array in the document
+//   access/allowlist
+// which you edit in the Firebase console (Firestore → access → allowlist). Each environment
+// (test / prod) is a separate Firebase project with its own allowlist.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/access/allowlist)
+        && request.auth.token.email.lower() in
+             get(/databases/$(database)/documents/access/allowlist).data.emails;
+    }
+
+    // The allowlist itself can only be changed from the Firebase console.
+    match /access/{doc} {
+      allow read, write: if false;
+    }
+
+    match /studios/{studio} {
+      allow read, write: if allowed();
+      match /{document=**} {
+        allow read, write: if allowed();
+      }
+    }
+  }
+}

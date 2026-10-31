@@ -1,11 +1,22 @@
 # Mudra — Attendance & Fees
 
-A free, offline web app for **Mudra**, a Kuchipudi dance class. It marks attendance, manages
-students and tracks monthly fees. No server, no login, no subscription.
+A web app for **Mudra**, a Kuchipudi dance class. It handles attendance, students and monthly fees.
+Google sign-in restricts it to allowed accounts, data syncs across her devices, and it works offline.
+It costs ₹0 to run (Firebase free Spark plan).
 
-**Live:** https://aamirsalam.github.io/mudra/
+| | TEST | PROD |
+|---|---|---|
+| Branch | `dev` | `main` |
+| URL | https://mudra-925e7.web.app | https://mudra-academy.web.app |
+| Firebase project | your test project | her prod project |
+| Who can sign in | aamirsalam5@gmail.com | her Gmail (added later) |
+| Data | sample/fake | her real data |
+
 **Repo:** https://github.com/aamirsalam/mudra
 **Local copy:** `C:\Users\Aamir\Documents\Projects\mudra`
+
+> History: v1–v2 were offline-only (data in the browser, hosted on GitHub Pages at
+> aamirsalam.github.io/mudra). v3 (this) adds Firebase for login, sync, and test/prod environments.
 
 ---
 
@@ -13,179 +24,245 @@ students and tracks monthly fees. No server, no login, no subscription.
 
 | # | Requirement | Notes |
 |---|---|---|
-| 1 | Mark attendance for students | Classes run on certain days of the week, in batches |
+| 1 | Mark attendance | Classes on certain weekdays, in batches |
 | 2 | Add / remove students | Keep history when a student leaves |
-| 3 | Track fee payments | Monthly. Due mid-month (15th). Currently ₹1,000, may change later |
-| 4 | First-fee rule | Due on the *next* 15th after joining, not pro-rated or per class (joined 5 Oct → Oct fee; joined 20 Oct → first fee Nov) |
-| 5 | Look back at past classes | "Was X absent that day?" / "Did X actually attend?" |
-| 6 | WhatsApp fee reminders | Editable message text |
+| 3 | Track fees | Monthly. Due mid-month (15th). ₹1,000 now, may change |
+| 4 | First-fee rule | Due on the *next* 15th after joining (joined 5 Oct → Oct fee; 20 Oct → first fee Nov). Not per class |
+| 5 | Look back at past classes | "Was X absent that day?" / "Did X attend?" |
+| 6 | WhatsApp fee reminders | Editable message |
 | 7 | Free to run | No hosting or subscription cost |
-| 8 | Runs on her **Surface Pro** | Touch-friendly. Later also: **phone** (Android/iPhone) |
-| 9 | Institute name fixed as "Mudra" | Not editable in the app, so it can't be rebranded by others |
+| 8 | Surface Pro + phones | Touch-friendly. Android & iPhone |
+| 9 | Name fixed as "Mudra" | Not editable in the app |
+| 10 | **Only her** can use it | Others opening the link must not be able to use it |
+| 11 | **Several devices** | Same data on her Surface and phone |
+| 12 | **Test copy for Aamir** | Same app, separate data, his own login, never her account |
 
 ---
 
-## 2. Solution overview
-
-**A Progressive Web App (PWA): static files hosted free on GitHub Pages, data stored in the
-browser on her device.**
+## 2. Architecture
 
 ```
- GitHub Pages (free hosting)            Her device (Surface / phone)
- ┌──────────────────────────┐   first   ┌──────────────────────────────────────┐
- │ index.html  (UI + logic) │──visit──▶ │ Edge/Chrome/Safari                   │
- │ sw.js       (offline)    │           │  ├─ Service worker cache → offline   │
- │ manifest.json, icons     │           │  └─ IndexedDB "dance-register" → DATA│
- └──────────────────────────┘           └──────────────────────────────────────┘
-        code only — no data                    data never leaves the device
-                                               (except the backup .json she downloads)
+                          GitHub: aamirsalam/mudra
+                 ┌────────────────────┴────────────────────┐
+             branch dev                                branch main
+                 │  GitHub Actions (.github/workflows/deploy.yml)
+                 ▼                                          ▼
+   ┌─────────────────────────────┐            ┌─────────────────────────────┐
+   │ Firebase project: TEST      │            │ Firebase project: PROD      │
+   │  Hosting  → app files       │            │  Hosting  → app files       │
+   │  Auth     → Google sign-in  │            │  Auth     → Google sign-in  │
+   │  Firestore→ data + rules    │            │  Firestore→ data + rules    │
+   │  access/allowlist: Aamir    │            │  access/allowlist: her      │
+   └──────────────┬──────────────┘            └──────────────┬──────────────┘
+                  ▼                                          ▼
+          Aamir's browser                     Her Surface / phone (installed PWA)
+                                              ├─ Service worker: app + SDK cached → opens offline
+                                              └─ Firestore offline cache: data + queued writes
 ```
 
-### Why this approach
-- **₹0 cost:** GitHub Pages hosts static files for free. There's no backend to pay for or patch.
-- **Offline:** the studio may not have internet, and a service worker caches the app.
-- **Installable:** Edge, Chrome and Safari can "install" it as an app with its own icon.
-- **Simple to maintain:** one HTML file, no build step, no framework, no dependencies.
-- **Rejected alternatives:**
-  - Google Sheets/AppSheet: it would sync across devices, but it's clunkier and depends on Google's limits.
-  - A real backend (DB + API): overkill, and it costs money and upkeep.
+### Why this design
+- **Firebase (free Spark plan)** gives hosting, Google sign-in and a database with **built-in offline
+  sync** in one product. One class is far inside the free limits.
+- **Security lives on the server.** `firestore.rules` only lets signed-in Google accounts listed in
+  `access/allowlist` read or write. The page is public, but strangers just see "No access".
+- **Two Firebase projects = two fully separate environments.** Different data, users and URLs. The same
+  code runs in both, and only `config.js` differs.
+- **The allowlist is data, not code.** You edit it in the Firebase console, so there's no deploy, and
+  her email isn't in the public repo.
+- **No build step / framework.** It's still one `index.html` with vanilla JS. The Firebase SDK is loaded
+  from Google's CDN (pinned to v10.14.1).
 
-### Trade-off to remember
-**No sync.** Each device and browser has its own separate data. Her Surface and her phone are
-independent copies, and your test data on your phone never reaches her. The only way to move data
-is Backup → Restore, which *replaces* everything rather than merging. She should pick one main device.
+**Alternatives considered:**
+- Supabase: free projects pause after a week of inactivity, and it has no built-in offline sync.
+- Google Sheets: slow, no offline support, fragile.
+- Cloudflare Access: protects the site, but doesn't sync data.
 
 ---
 
-## 3. Files
+## 3. Repository layout
 
-| File | Purpose |
-|---|---|
-| `index.html` | The whole app: CSS, HTML shell, and JS (~600 lines, vanilla, no libraries) |
-| `sw.js` | Service worker. **Network-first**: tries the network, falls back to the cache when offline. `CACHE` name = version |
-| `manifest.json` | PWA metadata: name "Mudra", icons, theme colour, `display: standalone` |
-| `icon-192.png`, `icon-512.png` | App icons (gold lotus + ghungroo bells on maroon), generated with Python/PIL |
+```
+public/                  ← everything that gets hosted
+  index.html             the whole app (CSS + HTML + JS module)
+  sw.js                  service worker (offline). __BUILD__ is replaced with the commit SHA on deploy
+  manifest.json, icon-*.png
+  config.js              GENERATED at deploy (copied from env/<target>.js) — git-ignored
+env/
+  test.js                Firebase web config for TEST   (fill in once)
+  prod.js                Firebase web config for PROD   (fill in once)
+firebase.json            hosting settings (no-cache headers) + rules file location
+firestore.rules          allowlist-based access rules (same file for both envs)
+firestore.indexes.json   empty (no composite indexes needed)
+.github/workflows/deploy.yml   dev → test, main → prod
+```
+
+The Firebase web config (apiKey etc.) is **not a secret**. It only identifies the project.
+Protection comes from the auth + rules.
 
 ---
 
-## 4. How the code is organised (`index.html`)
+## 4. How the app works (`public/index.html`)
 
-### Data model (one JSON object, saved to IndexedDB key `state`)
-```js
-{
-  version: 2,
-  batches:    [{ id, name, days:[0-6], time }],             // 0 = Sunday
-  students:   [{ id, name, phone, batchId, fee, joined:'YYYY-MM-DD',
-                 notes, active, left?:'YYYY-MM-DD' }],      // archive = active:false + left date
-  attendance: { 'YYYY-MM-DD|batchId': [studentId, ...] },   // list of who was PRESENT
-  payments:   [{ id, studentId, month:'YYYY-MM', amount, date, mode }],
-  defaultFee: 1000, dueDay: 15, waTemplate: '...', lastBackup: ISO
-}
+### Data in Firestore
 ```
-- Attendance stores only **present** IDs. Absent = on the batch roster that day but not in the list.
-- A class key existing with an empty list is a class held where nobody came. A missing key means
-  not marked.
-- Payments store the **amount actually paid**, so changing the fee later doesn't rewrite history.
-
-### Storage
-- `load()` / `save()` write the whole state to **IndexedDB**, falling back to `localStorage`.
-- `navigator.storage.persist()` is requested so the browser is less likely to evict data.
-- Every change calls `save()` straight away. There's no Save button.
-
-### Rendering
-- Simple pattern: `render()` rebuilds `<main>` from `VIEWS[tab]()`, a function returning an HTML string.
-- All clicks go through one delegated listener → `ACT[data-act](data-id, element)`.
-- All user text goes through `esc()` before insertion, to prevent HTML injection.
-- Dialogs use the native `<dialog>` element (`openDlg(html, onSubmit)`).
-
-### Fee logic (the key business rule)
+access/allowlist                          { emails: ["someone@gmail.com", ...] }   ← console only
+studios/mudra                             { defaultFee, dueDay, waTemplate, lastBackup }
+studios/mudra/batches/{id}                { name, days:[0-6], time }               0 = Sunday
+studios/mudra/students/{id}               { name, phone, batchId, fee, joined, notes, active, left? }
+studios/mudra/payments/{id}               { studentId, month:'YYYY-MM', amount, date, mode }
+studios/mudra/attendance/{date|batchId}   { date, batchId, present:[studentId,...] }
 ```
-dueDate(m)      = m + '-' + dueDay                      // e.g. 2026-11-15
+- Attendance stores only the **present** IDs. A missing class doc means "not marked".
+- Payments store the **amount actually paid**, so later fee changes don't rewrite history.
+
+### Sync model
+- The UI works on one in-memory `state` object, the same shape as the v2 offline app, so the screens
+  didn't need rewriting.
+- **Reading:** `subscribe()` opens live `onSnapshot` listeners on the settings doc plus the 4 collections.
+  Any change, including from her other device, updates `state` and re-renders. If a dialog is open,
+  the re-render waits until it closes.
+- **Writing:** every change calls `save()`, which **diffs** `state` against what was last synced
+  (key-order-independent JSON) and writes only the changed or deleted docs in a batch.
+  Toggling one tile = 1 write.
+- **Offline:** Firestore's `persistentLocalCache` keeps a local copy and queues writes until she
+  reconnects. The service worker caches the app files and the Firebase SDK, so the app opens with no
+  internet once she's signed in.
+- Forms look objects up again by `id` on submit, so a sync arriving while a form is open can't lose the edit.
+
+### Sign-in flow (`phase`)
+`boot → signedout → (Google sign-in) → loading → ready`, or `denied` if the account isn't allowlisted
+(the rules return `permission-denied`).
+- Popup sign-in normally. Redirect sign-in when installed as an app (iOS PWA) or if a popup is blocked.
+- `authDomain` is set to the site's own host so sign-in goes through `https://<host>/__/auth/handler`
+  on Firebase Hosting. This avoids Safari/iOS third-party-storage problems. On localhost it uses
+  `<project>.firebaseapp.com`.
+- Sign-out also clears the local Firestore cache, so a shared device keeps no data.
+
+### Upgrading from the offline-only version
+If a device still has data from v1/v2 (IndexedDB `dance-register`) and the account is empty, a banner
+offers **Upload**. It does this once per device.
+
+### Fee logic
+```
+dueDate(m)      = m-15  (dueDay configurable)
 firstMonth(s)   = joined <= dueDate(joinMonth) ? joinMonth : joinMonth + 1
 billable(s,m)   = fee > 0 && m >= firstMonth(s) && (active || m <= left month)
-feeStatus(s,m)  = paid | free | notyet | na | overdue (today > due) | upcoming
-overdueMonths() = every billable, unpaid, past-due month → "+N earlier months unpaid"
+feeStatus(s,m)  = paid | free | notyet | na | overdue | upcoming
 ```
 
-### Screens (tabs)
-| Tab | What it does |
-|---|---|
-| **Today** | Picks the batch scheduled for the weekday. Tap tiles to mark present. Change the date to fix a past class |
-| **History → By class** | Every class in a month with absent names. Flags scheduled days with no attendance as "Not marked". Tap a class to edit it |
-| **History → By student** | Month calendar (✓ attended / ✗ missed / ? not marked), overall %, unpaid months, recent payments. Also opened by tapping a student anywhere |
-| **Students** | Add / edit / archive (keeps history) / delete (wipes history) |
-| **Fees** | Month view sorted Overdue → Due → First fee → Paid. Mark paid (amount, date, UPI/Cash), Undo, Remind |
-| **Reports** | Attendance % per student, classes per batch, CSV export (month summary + full register) |
-| **Settings** | Batches, default fee (+ apply to all active), due day, WhatsApp template, backup/restore, sample data, erase |
+### Screens
+**Today** (tap to mark, change date to fix past) · **History** (by class: absentees and "not marked";
+by student: calendar, %, unpaid months) · **Students** · **Fees** (Overdue → Due → First fee → Paid;
+Mark paid / Undo / Remind) · **Reports** (CSV export) · **Settings** (account, batches, fee, due day,
+WhatsApp template, backup/restore). "Load sample data" appears **only in TEST**.
 
-### WhatsApp reminders
-- No API is used, and nothing is sent automatically. That would need the WhatsApp Business API, which is paid and needs a server.
-- **Remind** opens `https://wa.me/91XXXXXXXXXX?text=...` and she presses Send herself.
-- It only shows when the fee is Due/Overdue **and** the student has a phone number. A 10-digit number gets `91` added.
-- Template placeholders: `{name}` `{amount}` `{month}` `{due}`. These are filled by `fillMsg()`.
+The header shows a gold **TEST** tag in the test environment, so you never confuse it with prod.
 
-### Responsive layout
-- **Desktop/Surface:** tabs across the top.
-- **≤ 640px (phones):** bottom tab bar with icons, safe-area padding, smaller tiles, 2-column stats.
+### WhatsApp
+**Remind** opens `wa.me/91…?text=…` with the message pre-filled, and she presses Send. Nothing is
+automatic (that would need the paid Business API). It shows only for Due/Overdue fees on students who
+have a phone number. Placeholders: `{name} {amount} {month} {due}`.
 
 ---
 
-## 5. Fixes & lessons learned
+## 5. One-time setup
+
+> **Going live for her?** Follow the full checklist in [`docs/PROD-SETUP.md`](docs/PROD-SETUP.md). (do this once per environment)
+
+Do everything for **TEST** first. Repeat for **PROD** when you're ready to add her.
+
+### A. Create the Firebase project
+1. https://console.firebase.google.com → **Add project** → name it e.g. `mudra-test` (note the
+   **project ID**, which may get a suffix). Google Analytics isn't needed.
+2. **Build → Firestore Database → Create database** → location **asia-south1 (Mumbai)** →
+   start in **production mode**.
+3. **Build → Authentication → Get started → Sign-in method → Google → Enable**, then pick a support email.
+4. **Project settings (gear) → General → Your apps → Web (`</>`)** → register an app (no hosting
+   checkbox needed) → copy the `firebaseConfig` values into **`env/test.js`**.
+
+### B. Allowlist
+5. **Firestore → Start collection** `access` → document ID `allowlist` → field `emails`
+   (type **array**) → add `aamirsalam5@gmail.com`.
+   ⚠️ Must match exactly what Google reports (Gmail dots matter here — `aamir.salam5` ≠ `aamirsalam5`).
+   Easiest: sign in once, and copy the address shown on the "No access" screen.
+   For PROD: add her Gmail here (and yours too, if she agrees to you having support access).
+
+### C. Let sign-in work on the web.app domain
+6. Google Cloud console for the same project → **APIs & Services → Credentials** → the OAuth client
+   **"Web client (auto created by Google Service)"** → **Authorized redirect URIs** → add
+   `https://<project-id>.web.app/__/auth/handler` → Save.
+   (`<project-id>.web.app` is already an authorized domain in Firebase Auth by default. If you add a
+   custom domain later, add it in both places.)
+
+### D. Deploy credentials for GitHub Actions
+7. Google Cloud console → **IAM & Admin → Service Accounts → Create** `github-deploy`, with roles:
+   **Firebase Hosting Admin**, **Firebase Rules Admin**, **API Keys Viewer**, **Service Usage Consumer**.
+   Then go to **Keys → Add key → JSON** and download it.
+8. GitHub repo → **Settings → Environments → `test`** (created by the first workflow run, or create it)
+   → **Add secret** `FIREBASE_SERVICE_ACCOUNT` = paste the whole JSON. Then delete the downloaded file.
+   For PROD use environment `prod`. Optionally add **Required reviewers** so prod deploys need your approval.
+
+### E. Deploy
+9. Commit `env/test.js` and push to `dev`. The workflow deploys hosting + rules, and the run summary
+   shows the URL.
+10. Open `https://<project-id>.web.app` → sign in → **Settings → Load sample data** to play.
+
+Until a secret or config is filled in, the workflow **skips with a warning** instead of failing.
+
+---
+
+## 6. Day-to-day workflow
+
+```bash
+git checkout dev
+# edit public/index.html ...
+git commit -am "Change X" && git push        # → deploys to TEST automatically
+# check on the test URL, then:
+git checkout main && git merge dev && git push   # → deploys to PROD
+```
+- No manual cache bumping: the workflow stamps `sw.js` with the commit SHA, so every deploy refreshes
+  the offline cache. Devices pick it up the next time they open online (reload once or twice).
+- **Add or remove a user:** edit `access/allowlist.emails` in that project's Firestore console. It takes
+  effect immediately, with no deploy.
+- **Rules change:** edit `firestore.rules` → push. The workflow deploys rules too.
+- **Run locally:** `cp env/test.js public/config.js && npx firebase-tools serve --project <test-id>`
+  (or any static server on `localhost`; localhost is an authorized domain).
+- **Data model change:** settings get defaults from `fresh()`, so new fields are safe. Renaming fields
+  needs a migration.
+
+---
+
+## 7. Her devices
+
+- **Surface (Edge):** open the prod URL → ⋯ → **Apps → Install this site as an app**.
+- **Android (Chrome):** ⋮ → **Install app**.
+- **iPhone (Safari):** Share → **Add to Home Screen**.
+- She signs in once per device with her Google account. After that it works offline, and all devices
+  show the same data.
+- **Backup:** Settings → Download backup gives a `.json` copy as an extra safety net. Restoring a backup
+  replaces all cloud data.
+
+---
+
+## 8. Fixes & lessons learned
 
 | Issue | Cause | Fix |
 |---|---|---|
-| Tabs overflowed and Settings was hidden on phones | 6 top tabs too wide for a phone | Bottom tab bar with icons at ≤ 640px |
-| Date field overlapped the Batch field on iPhone | iOS date inputs ignore `width:100%` | `appearance:none; min-width:0` on date/month inputs |
-| iPhone zoomed in when tapping a form field | iOS Safari auto-zooms inputs with font < 16px (fields inherited 13px from labels) | `font-size:16px` on all inputs/selects/textareas |
-| Fees "due on" note squeezed beside Month on phones | Inline flex layout | `.bar>.hint{flex:1 1 230px}` so it wraps below |
+| Tabs overflowed on phones | 6 top tabs too wide | Bottom tab bar with icons at ≤ 640px |
+| Date field overlapped Batch on iPhone | iOS date inputs ignore `width:100%` | `appearance:none; min-width:0` |
+| iPhone zoomed in on form fields | iOS auto-zooms inputs < 16px | `font-size:16px` on all inputs |
+| Fees hint squeezed on phones | inline flex | `.bar>.hint{flex:1 1 230px}` |
 | Month text centred on iOS | WebKit default | `::-webkit-date-and-time-value{text-align:left}` |
-| Phone showed old version after an update | Service worker cache | Network-first SW + bump `CACHE`. Reload once or twice |
-| Couldn't edit the institute name | By design (requirement 9) | Name hard-coded as `STUDIO='Mudra'` |
-| Claude couldn't create the repo or enable Pages | Session limits on repo creation / Pages API | Repo created manually. Pages enabled in Settings → Pages. Claude GitHub App installed for pushes |
+| Old version cached after update | service worker | network-first SW + per-deploy cache name (commit SHA) |
+| Anyone with the link could use it | static site, no auth | Google sign-in + Firestore rules allowlist |
+| Separate data per device | browser-only storage | Firestore with offline cache |
+| Write loops / extra writes risk | Firestore returns fields in a different order | diff uses key-sorted JSON |
+| Edit lost if a sync arrives mid-form | snapshot replaces objects | forms re-look-up by `id` on submit |
+| Claude couldn't create the repo / enable Pages | session API limits | done manually. Claude GitHub App installed for pushes |
 
 ---
 
-## 6. Deploy & update
-
-**Hosting:** GitHub Pages → Settings → Pages → *Deploy from a branch* → `main` / root.
-The "pages build and deployment" action publishes each push in about a minute.
-
-**To release a change:**
-1. Edit the files.
-2. Bump `CACHE` in `sw.js` (e.g. `mudra-v4` → `mudra-v5`).
-3. Commit and push to `main`.
-4. Users get it the next time they open the app online (reload once or twice). Data is untouched.
-
-**Data model changes:** `state = Object.assign(fresh(), saved)` fills in new fields with defaults,
-so adding fields is safe. Renaming or removing fields needs a small migration in the start-up block.
-
-**Custom domain (optional):** free on GitHub's side, but the domain costs roughly ₹500–1,200 a year. Add a CNAME
-(`app` → `aamirsalam.github.io`) and set it in Settings → Pages. ⚠️ Changing the URL changes
-browser storage, so the data won't follow. Back up first, then restore on the new address.
-
-**Code privacy:** free GitHub Pages needs a public repo, so anyone can copy the code. Her data is
-never in the repo. For private code, use a private repo with Cloudflare Pages (free).
-
----
-
-## 7. Setting up her device
-
-**Surface (Edge):** open the link → ⋯ → **Apps → Install this site as an app** → pin to Start/taskbar.
-**Android (Chrome):** ⋮ → **Install app** / Add to Home screen.
-**iPhone (Safari):** Share → **Add to Home Screen**.
-
-After the first online visit, it works offline.
-
-### Backups (important)
-- **Settings → Download backup** saves `mudra-backup-YYYY-MM-DD.json`. Keep it in OneDrive/Google Drive.
-- The app shows a banner if no backup has been taken for 7 days.
-- Clearing browser "cookies and site data", switching browser or profile, or a new device = empty app.
-  Fix it with **Settings → Restore from backup**.
-- Handy for setup: enter batches and students on one device, back up, then restore on hers.
-
----
-
-## 8. Ideas not built (yet)
-- Cloud sync between devices (would need Google Sheets, Firebase or Supabase)
-- Automatic WhatsApp sending (paid WhatsApp Business API)
-- Per-class or term-based billing (the current rule is monthly only)
+## 9. Not built (ideas)
+- Automatic WhatsApp sending (paid Business API)
+- Per-class or term billing
+- Roles (e.g. a read-only helper account)

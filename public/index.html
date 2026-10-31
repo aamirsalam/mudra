@@ -132,12 +132,17 @@ dialog{max-height:calc(100dvh - 32px);overflow:auto}
   .cal{gap:4px}.cal .d{min-height:42px;font-size:13px}
   .banner{font-size:14px}
 }
+nav[hidden]{display:none!important}
+.gate{max-width:420px;margin:48px auto;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:32px 22px}
+.gate img{width:72px;height:72px;border-radius:16px}
+.gate h2{margin:14px 0 6px}.gate p{color:var(--muted);margin:0 0 18px}
+.envtag{background:var(--gold);color:#2a1a14;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;letter-spacing:.06em}
 #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;transition:transform .25s;z-index:20;font-weight:600;max-width:calc(100vw - 32px)}
 #toast.show{transform:translate(-50%,0)}
 </style>
 </head>
 <body>
-<header><img src="icon-192.png" alt=""><div><h1>Mudra</h1><small>Attendance &amp; Fees</small></div></header>
+<header><img src="icon-192.png" alt=""><div><h1>Mudra<span id="envtag"></span></h1><small>Attendance &amp; Fees</small></div></header>
 <nav>
   <button data-act="tab" data-id="today"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v3M17 2v3M3 9h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM8 15l2.5 2.5L16 12"/></svg><span>Today</span></button>
   <button data-act="tab" data-id="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3"/></svg><span>History</span></button>
@@ -150,8 +155,17 @@ dialog{max-height:calc(100dvh - 32px);overflow:auto}
 <dialog id="dlg"></dialog>
 <div id="toast" role="status"></div>
 
+<script src="config.js"></script>
 <script>
-'use strict';
+setTimeout(function(){if(!window.__booted){document.getElementById('main').innerHTML='<div class="gate"><h2>Couldn\'t start</h2><p>Connect to the internet and reload. After the first successful load, the app also works offline.</p><button class="btn primary" onclick="location.reload()">Reload</button></div>'}},10000);
+</script>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import {getAuth,onAuthStateChanged,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,signOut} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,collection,onSnapshot,writeBatch,terminate,clearIndexedDbPersistence} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+window.__booted=true;
+const ENV=window.MUDRA_ENV||null;
+const IS_PROD=!ENV||ENV.name==='prod';
 /* ---------- constants & helpers ---------- */
 const STUDIO='Mudra';
 const DEFAULT_MSG="Namaste! A gentle reminder that {name}'s fee of {amount} for {month} at Mudra is due on {due}. Thank you!";
@@ -176,16 +190,111 @@ let state=fresh(), tab='today';
 const today=ymd(new Date()), thisMonth=today.slice(0,7);
 const ui={date:today,batch:null,month:thisMonth,search:'',showArchived:false,lastMode:'UPI',hist:'classes',hBatch:null,hStudent:null};
 
-/* ---------- storage (IndexedDB, localStorage fallback) ---------- */
-let db=null;
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('dance-register',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
-async function load(){
-  try{db=await openDB();return await new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get('state');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
-  catch(e){db=null;try{return JSON.parse(localStorage.getItem('dance-register')||'null')}catch(_){return null}}
+/* ---------- cloud data layer (Firebase Auth + Firestore) ----------
+   Data lives in Firestore under studios/mudra:
+     studios/mudra                    -> settings (defaultFee, dueDay, waTemplate, lastBackup)
+     studios/mudra/batches/{id}       studios/mudra/students/{id}
+     studios/mudra/payments/{id}      studios/mudra/attendance/{date|batchId} -> {date,batchId,present:[ids]}
+   The app keeps one in-memory `state` (same shape as before). save() diffs it against what was last
+   synced and writes only changed docs. Firestore's persistent cache gives offline use + queued writes. */
+let auth=null, db=null, user=null, phase='boot', legacy=null;   // phase: boot|noconfig|signedout|loading|denied|ready
+const BASE=['studios','mudra'];
+const COLS=['batches','students','payments','attendance'];
+const SOURCES=['settings',...COLS];
+let synced={}, sigs={}, loaded={}, server={}, serverSynced=false, unsub=[], pendingRender=false;
+const clean=o=>JSON.parse(JSON.stringify(o));
+const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
+const stable=o=>JSON.stringify(sortKeys(o));
+const settingsOf=()=>({defaultFee:state.defaultFee,dueDay:state.dueDay,waTemplate:state.waTemplate,lastBackup:state.lastBackup});
+function toDocs(){
+  const byId=a=>new Map(a.map(x=>{const d=clean(x);delete d.id;return [x.id,d]}));
+  return {batches:byId(state.batches),students:byId(state.students),payments:byId(state.payments),
+    attendance:new Map(Object.entries(state.attendance).map(([k,v])=>{const [date,batchId]=k.split('|');return [k,{date,batchId,present:v}]}))};
 }
 function save(){
-  if(db){try{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(JSON.parse(JSON.stringify(state)),'state');t.onerror=()=>toast('Could not save — please back up now');return}catch(e){}}
-  try{localStorage.setItem('dance-register',JSON.stringify(state))}catch(e){toast('Could not save — please back up now')}
+  if(phase!=='ready'||!db)return;
+  const ops=[], docs=toDocs();
+  COLS.forEach(c=>{
+    const cur=docs[c], sy=synced[c];
+    cur.forEach((d,id)=>{const sig=stable(d);if(sy.get(id)!==sig){ops.push({ref:doc(db,...BASE,c,id),d});sy.set(id,sig)}});
+    [...sy.keys()].forEach(id=>{if(!cur.has(id)){ops.push({ref:doc(db,...BASE,c,id)});sy.delete(id)}});
+  });
+  const st=clean(settingsOf()), ss=stable(st);
+  if(synced.settings!==ss){ops.push({ref:doc(db,...BASE),d:st});synced.settings=ss}
+  for(let i=0;i<ops.length;i+=400){
+    const b=writeBatch(db);
+    ops.slice(i,i+400).forEach(o=>o.d?b.set(o.ref,o.d):b.delete(o.ref));
+    b.commit().catch(e=>{console.error(e);toast(e.code==='permission-denied'?'This account cannot save changes':'Could not sync — will retry when online')});
+  }
+}
+function stopSync(){unsub.forEach(f=>{try{f()}catch(e){}});unsub=[]}
+function softRender(){if(dlg.open){pendingRender=true;return}render()}
+function onData(name,snap,sig,apply){
+  if(!snap.metadata.fromCache)server[name]=true;
+  let changed=!loaded[name];loaded[name]=true;
+  if(sig!==sigs[name]){sigs[name]=sig;apply();changed=true}
+  if(phase==='loading'&&SOURCES.every(n=>loaded[n])){phase='ready';changed=true}
+  if(!serverSynced&&SOURCES.every(n=>server[n])){serverSynced=true;changed=true}
+  if(changed&&phase==='ready')softRender();
+}
+function subscribe(){
+  stopSync();
+  synced={settings:null};COLS.forEach(c=>synced[c]=new Map());
+  sigs={};loaded={};server={};serverSynced=false;state=fresh();
+  const onErr=e=>{console.error(e);
+    if(e.code==='permission-denied'){phase='denied';stopSync();render()}
+    else toast('Sync problem: '+(e.code||e.message))};
+  const opts={includeMetadataChanges:true};
+  unsub.push(onSnapshot(doc(db,...BASE),opts,snap=>{
+    const d=snap.exists()?snap.data():null;
+    onData('settings',snap,d?stable(d):'none',()=>{
+      const f=fresh(),x=d||{};
+      state.defaultFee=x.defaultFee??f.defaultFee;state.dueDay=x.dueDay??f.dueDay;
+      state.waTemplate=x.waTemplate||f.waTemplate;state.lastBackup=x.lastBackup??null;
+      synced.settings=d?stable(d):null;
+    });
+  },onErr));
+  COLS.forEach(c=>unsub.push(onSnapshot(collection(db,...BASE,c),opts,snap=>{
+    const rows=snap.docs.map(x=>[x.id,x.data()]);
+    onData(c,snap,stable(rows),()=>{
+      synced[c]=new Map(rows.map(([id,d])=>[id,stable(d)]));
+      if(c==='attendance')state.attendance=Object.fromEntries(rows.map(([id,d])=>[id,d.present||[]]));
+      else state[c]=rows.map(([id,d])=>({id,...d}));
+    });
+  },onErr)));
+}
+async function signIn(){
+  if(!navigator.onLine){toast('Connect to the internet to sign in');return}
+  const p=new GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+  const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  try{if(standalone)return await signInWithRedirect(auth,p);await signInWithPopup(auth,p)}
+  catch(e){
+    if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].includes(e.code))return signInWithRedirect(auth,p);
+    if(e.code!=='auth/popup-closed-by-user')toast('Sign-in failed: '+(e.code||e.message));
+  }
+}
+async function doSignOut(){
+  stopSync();
+  try{await terminate(db);await clearIndexedDbPersistence(db)}catch(e){}
+  try{await signOut(auth)}catch(e){}
+  location.reload();
+}
+/* data saved by the old offline-only version (IndexedDB "dance-register") — offered for one-time upload */
+function loadLegacy(){
+  return new Promise(res=>{
+    const ls=()=>{try{return JSON.parse(localStorage.getItem('dance-register')||'null')}catch(e){return null}};
+    try{const r=indexedDB.open('dance-register',1);
+      r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+      r.onsuccess=()=>{try{const q=r.result.transaction('kv').objectStore('kv').get('state');q.onsuccess=()=>{res(q.result||ls());r.result.close()};q.onerror=()=>res(ls())}catch(e){res(ls())}};
+      r.onerror=()=>res(ls());
+    }catch(e){res(ls())}
+  });
+}
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+function migrateBanner(){
+  if(!legacy||!(legacy.students||[]).length||!serverSynced||state.students.length||state.batches.length||lsGet('mudra-migrated'))return'';
+  return `<div class="banner" style="background:var(--up-bg)"><span class="grow">Found <b>${legacy.students.length} students</b> saved on this device by the earlier version of the app. Upload them to your account?</span><button class="btn sm primary" data-act="migrate">Upload</button><button class="btn sm ghost" data-act="migrate-skip">Not now</button></div>`;
 }
 
 /* ---------- lookups ---------- */
@@ -228,15 +337,15 @@ const empty=(title,text,action)=>`<div class="empty"><h3>${title}</h3>${text?`<p
 function backupBanner(){
   if(!state.students.length)return'';
   const lb=state.lastBackup, days=lb?Math.floor((Date.now()-new Date(lb))/864e5):null;
-  if(lb&&days<7)return'';
-  return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Save a copy so nothing is lost if this device has a problem.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
+  if(lb&&days<30)return'';
+  return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Your data is in the cloud, but an occasional backup file is a good extra safety copy.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
 }
 const monthInput=id=>`<label class="field"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
 const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&s.left>=d)));
 
 /* ---------- Today ---------- */
 function viewToday(){
-  if(!state.batches.length)return empty('Start by creating a batch','Batches are your class groups, e.g. “Beginners — Mon &amp; Thu, 5 pm”.','<button class="btn primary" data-act="batch-new">Create a batch</button><p class="hint" style="margin-top:14px">Just exploring? <a href="#" data-act="demo">Load sample data</a></p>');
+  if(!state.batches.length)return empty('Start by creating a batch','Batches are your class groups, e.g. “Beginners — Mon &amp; Thu, 5 pm”.',`<button class="btn primary" data-act="batch-new">Create a batch</button>${IS_PROD?'':'<p class="hint" style="margin-top:14px">Just exploring? <a href="#" data-act="demo">Load sample data</a></p>'}`);
   if(!batchById(ui.batch))ui.batch=defaultBatch(ui.date);
   const b=batchById(ui.batch), key=ui.date+'|'+b.id, rec=state.attendance[key], present=new Set(rec||[]);
   const wd=parse(ui.date).getDay(), scheduled=b.days.includes(wd);
@@ -394,7 +503,9 @@ function viewReports(){
 /* ---------- Settings ---------- */
 function viewSettings(){
   const sample=state.students.find(s=>s.active)||{name:'Ananya',fee:state.defaultFee};
-  return `<div class="card"><h2>Batches</h2><div class="list">${state.batches.map(b=>`<button class="item" data-act="batch-edit" data-id="${b.id}"><span class="grow"><b>${esc(b.name)}</b><small>${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'No days set'}${b.time?' · '+esc(b.time):''} · ${studentsIn(b.id).length} students</small></span><span class="chev">›</span></button>`).join('')||'<p class="hint">No batches yet.</p>'}</div>
+  return `<div class="card"><h2>Account</h2><div class="row"><span class="grow">Signed in as <b>${esc(user&&user.email||'')}</b>${IS_PROD?'':` <span class="pill">${esc(ENV.name)} environment</span>`}</span><button class="btn" data-act="signout">Sign out</button></div>
+    <p class="hint" style="margin:10px 0 0">${navigator.onLine?'✓ Online — changes sync to all your devices.':'Offline — changes are saved on this device and will sync when you reconnect.'}</p></div>
+  <div class="card"><h2>Batches</h2><div class="list">${state.batches.map(b=>`<button class="item" data-act="batch-edit" data-id="${b.id}"><span class="grow"><b>${esc(b.name)}</b><small>${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'No days set'}${b.time?' · '+esc(b.time):''} · ${studentsIn(b.id).length} students</small></span><span class="chev">›</span></button>`).join('')||'<p class="hint">No batches yet.</p>'}</div>
     <div style="margin-top:12px"><button class="btn primary" data-act="batch-new">+ Add batch</button></div></div>
   <div class="card"><h2>Fees</h2>
     <p class="hint">Fees are monthly. A new student's first fee is due on the first due date after they join (e.g. joining on the 20th → first fee next month).</p>
@@ -406,23 +517,34 @@ function viewSettings(){
     <textarea id="set-msg" rows="4">${esc(state.waTemplate)}</textarea>
     <div class="preview" id="msg-preview">${esc(fillMsg(sample,thisMonth))}</div>
     <button class="btn ghost sm" data-act="reset-msg">Reset to default</button></div>
-  <div class="card"><h2>Backup</h2><p class="hint">Everything is stored only on this device. Download a backup every week and keep it in OneDrive or Google Drive. To move to a new device, restore that file there.</p>
+  <div class="card"><h2>Backup</h2><p class="hint">Your data is stored in your account and syncs to every device you sign in on. A backup file is an extra safety copy — download one now and then and keep it in OneDrive or Google Drive. Restoring a backup replaces all current data.</p>
     <p>Last backup: <b>${state.lastBackup?fmtDate(state.lastBackup):'never'}</b></p>
     <div class="row"><button class="btn primary" data-act="backup">Download backup</button><label class="btn">Restore from backup<input type="file" id="import-file" accept=".json,application/json" hidden></label></div></div>
   <div class="card"><h2>Data</h2><p class="hint">${state.students.length} students · ${Object.keys(state.attendance).length} classes recorded · ${state.payments.length} payments. Works offline.</p>
-    <div class="row">${state.students.length?'':'<button class="btn" data-act="demo">Load sample data</button>'}<button class="btn danger" data-act="wipe">Erase all data</button></div></div>`;
+    <div class="row">${state.students.length||IS_PROD?'':'<button class="btn" data-act="demo">Load sample data</button>'}<button class="btn danger" data-act="wipe">Erase all data</button></div></div>`;
 }
 
 const VIEWS={today:viewToday,history:viewHistory,students:viewStudents,fees:viewFees,reports:viewReports,settings:viewSettings};
+function gate(){
+  const card=(t,p,a)=>`<div class="gate"><img src="icon-192.png" alt=""><h2>${t}</h2>${p?`<p>${p}</p>`:''}${a||''}</div>`;
+  if(phase==='noconfig')return card('Not configured','This copy of the app has no Firebase settings (config.js).');
+  if(phase==='signedout')return card('Welcome to Mudra','Sign in to see your classes, students and fees.','<button class="btn primary" data-act="signin">Sign in with Google</button>');
+  if(phase==='denied')return card('No access',`<b>${esc(user&&user.email||'This account')}</b> isn't allowed to use this app. Sign in with the account that was given access.`,'<button class="btn primary" data-act="signout">Use a different account</button>');
+  return card(phase==='loading'?'Loading your data…':'Starting…','');
+}
 function render(){
+  const ready=phase==='ready';
+  document.querySelector('nav').hidden=!ready;
+  if(!ready){document.getElementById('main').innerHTML=gate();return}
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===tab));
-  document.getElementById('main').innerHTML=backupBanner()+VIEWS[tab]();
+  document.getElementById('main').innerHTML=migrateBanner()+backupBanner()+VIEWS[tab]();
 }
 
 /* ---------- dialogs ---------- */
 const dlg=document.getElementById('dlg');
 let dlgSubmit=null;
 function openDlg(html,onSubmit){dlg.innerHTML=`<form>${html}</form>`;dlgSubmit=onSubmit;dlg.showModal()}
+dlg.addEventListener('close',()=>{if(pendingRender){pendingRender=false;render()}});
 dlg.addEventListener('submit',e=>{e.preventDefault();if(dlgSubmit&&dlgSubmit(new FormData(e.target))!==false){dlg.close();save();render()}});
 const cancelBtns=label=>`<button type="button" class="btn ghost" data-act="dlg-close">Cancel</button><button class="btn primary">${label}</button>`;
 
@@ -435,7 +557,7 @@ function batchForm(b){
     <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn danger sm" data-act="batch-delete" data-id="${b.id}">Delete</button></span>`}${cancelBtns(isNew?'Create':'Save')}</div>`,
   fd=>{const d={name:fd.get('name').trim(),time:fd.get('time').trim(),days:fd.getAll('days').map(Number)};
     if(!d.name)return false;
-    if(isNew){state.batches.push({id:uid(),...d});ui.batch=defaultBatch(ui.date)}else Object.assign(b,d);});
+    if(isNew){state.batches.push({id:uid(),...d});ui.batch=defaultBatch(ui.date)}else Object.assign(batchById(b.id)||b,d);});
 }
 
 const firstDueText=j=>j?`First fee due on ${fmtDate(dueDate(firstMonth({joined:j})))}`:'';
@@ -453,7 +575,7 @@ function studentForm(s){
     <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn sm" data-act="student-archive" data-id="${s.id}">${s.active?'Archive':'Restore'}</button><button type="button" class="btn danger sm" data-act="student-delete" data-id="${s.id}">Delete</button></span>`}${cancelBtns(isNew?'Add':'Save')}</div>`,
   fd=>{const d={name:fd.get('name').trim(),phone:fd.get('phone').trim(),batchId:fd.get('batchId'),fee:Number(fd.get('fee')||0),joined:fd.get('joined'),notes:fd.get('notes').trim()};
     if(!d.name)return false;
-    if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}else Object.assign(s,d);});
+    if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}else Object.assign(studentById(s.id)||s,d);});
 }
 
 function payForm(sid,m){
@@ -493,6 +615,12 @@ function loadDemo(){
 /* ---------- actions ---------- */
 const ACT={
   tab:id=>{tab=id;render();window.scrollTo(0,0)},
+  signin:()=>signIn(),
+  signout:()=>{if(phase==='ready'&&!confirm('Sign out of Mudra on this device?'))return;doSignOut()},
+  migrate:()=>{if(!confirm(`Upload ${legacy.students.length} students and their attendance and fees to your account?`))return;
+    state=Object.assign(fresh(),clean(legacy));delete state.studio;state.version=fresh().version;ui.batch=null;ui.hStudent=null;
+    lsSet('mudra-migrated','1');save();render();toast('Data uploaded')},
+  'migrate-skip':()=>{lsSet('mudra-migrated','1');render()},
   'dlg-close':()=>dlg.close(),
   'go-today':()=>{ui.date=today;ui.batch=defaultBatch(today);render()},
   hist:id=>{ui.hist=id;render()},
@@ -552,8 +680,8 @@ const ACT={
     download('mudra-attendance-register.csv',csv(out),'text/csv');
   },
   backup:()=>{state.lastBackup=new Date().toISOString();save();download(`mudra-backup-${today}.json`,JSON.stringify(state,null,1),'application/json');render();toast('Backup downloaded — move it to OneDrive')},
-  demo:()=>{if(state.students.length&&!confirm('Replace current data with sample data?'))return;loadDemo()},
-  wipe:()=>{if(!confirm('Erase ALL students, attendance and payments from this device?'))return;if(prompt('Type ERASE to confirm')!=='ERASE')return;state=fresh();ui.batch=null;save();render();toast('All data erased')},
+  demo:()=>{if(IS_PROD)return;if(state.students.length&&!confirm('Replace current data with sample data?'))return;loadDemo()},
+  wipe:()=>{if(!confirm('Erase ALL students, attendance and payments from your account (on every device)?'))return;if(prompt('Type ERASE to confirm')!=='ERASE')return;state=fresh();ui.batch=null;save();render();toast('All data erased')},
 };
 
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;if(t.tagName==='A')e.preventDefault();const f=ACT[t.dataset.act];if(f)f(t.dataset.id,t)});
@@ -584,11 +712,26 @@ document.addEventListener('input',e=>{
 });
 
 /* ---------- start ---------- */
+window.addEventListener('online',()=>{if(tab==='settings')softRender()});
+window.addEventListener('offline',()=>{if(tab==='settings')softRender()});
 (async()=>{
-  state=Object.assign(fresh(),await load()||{});
-  delete state.studio;
-  if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+  if(ENV&&!IS_PROD){document.getElementById('envtag').innerHTML=`<span class="envtag">${esc(ENV.name.toUpperCase())}</span>`;document.title='Mudra ('+ENV.name+')'}
+  if(!ENV||!ENV.firebase||!ENV.firebase.apiKey||ENV.firebase.apiKey.startsWith('REPLACE')){phase='noconfig';render();return}
+  const cfg={...ENV.firebase};
+  // Sign in through this site's own /__/auth handler (Firebase Hosting) so redirects work in Safari/iOS PWAs
+  if(!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))cfg.authDomain=location.hostname;
+  const app=initializeApp(cfg);
+  auth=getAuth(app);
+  db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+  legacy=await loadLegacy();
   render();
+  getRedirectResult(auth).catch(e=>toast('Sign-in failed: '+(e.code||e.message)));
+  onAuthStateChanged(auth,u=>{
+    stopSync();user=u;
+    if(!u){phase='signedout';render();return}
+    phase='loading';render();subscribe();
+  });
+  if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
   if(location.protocol.startsWith('http')&&'serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
