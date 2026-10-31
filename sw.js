@@ -1,5 +1,5 @@
 // Network-first cache so the app opens offline and still picks up updates.
-const CACHE = 'mudra-v3';
+const CACHE = 'mudra-v4';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
