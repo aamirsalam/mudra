@@ -9,7 +9,7 @@ It costs ₹0 to run (Firebase free Spark plan).
 | Branch | `dev` | `main` |
 | URL | https://mudra-925e7.web.app | `https://<prod-project-id>.web.app` |
 | Firebase project | your test project | her prod project |
-| Who can sign in | aamir.salam5@gmail.com | her Gmail (added later) |
+| Who can sign in | aamirsalam5@gmail.com | her Gmail (added later) |
 | Data | sample/fake | her real data |
 
 **Repo:** https://github.com/aamirsalam/mudra
@@ -180,7 +180,9 @@ Do everything for **TEST** first. Repeat for **PROD** when you're ready to add h
 
 ### B. Allowlist
 5. **Firestore → Start collection** `access` → document ID `allowlist` → field `emails`
-   (type **array**) → add `aamir.salam5@gmail.com`.
+   (type **array**) → add `aamirsalam5@gmail.com`.
+   ⚠️ Must match exactly what Google reports (Gmail dots matter here — `aamir.salam5` ≠ `aamirsalam5`).
+   Easiest: sign in once, and copy the address shown on the "No access" screen.
    For PROD: add her Gmail here (and yours too, if she agrees to you having support access).
 
 ### C. Let sign-in work on the web.app domain
