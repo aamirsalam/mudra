@@ -165,7 +165,9 @@ have a phone number. Placeholders: `{name} {amount} {month} {due}`.
 
 ---
 
-## 5. One-time setup (do this once per environment)
+## 5. One-time setup
+
+> **Going live for her?** Follow the full checklist in [`docs/PROD-SETUP.md`](docs/PROD-SETUP.md). (do this once per environment)
 
 Do everything for **TEST** first. Repeat for **PROD** when you're ready to add her.
 
