@@ -7,7 +7,7 @@ It costs ₹0 to run (Firebase free Spark plan).
 | | TEST | PROD |
 |---|---|---|
 | Branch | `dev` | `main` |
-| URL | `https://<test-project-id>.web.app` | `https://<prod-project-id>.web.app` |
+| URL | https://mudra-925e7.web.app | `https://<prod-project-id>.web.app` |
 | Firebase project | your test project | her prod project |
 | Who can sign in | aamir.salam5@gmail.com | her Gmail (added later) |
 | Data | sample/fake | her real data |
