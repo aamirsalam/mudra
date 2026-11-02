@@ -350,7 +350,7 @@ function backupBanner(){
   return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Your data is in the cloud, but an occasional backup file is a good extra safety copy.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
 }
 const monthInput=id=>`<label class="field month"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
-const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&s.left>=d)));
+const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&d<s.left)));
 
 /* ---------- Today ---------- */
 function viewToday(){
@@ -410,8 +410,8 @@ function histStudent(seg){
   const s=studentById(ui.hStudent), b=batchById(s.batchId), m=ui.month;
   const opts=g=>g.map(x=>`<option value="${x.id}"${x.id===s.id?' selected':''}>${esc(x.name)}</option>`).join('');
   const arch=all.filter(x=>!x.active);
-  const sel=`<label class="field grow"><span>Student</span><select id="h-student">${opts(all.filter(x=>x.active))}${arch.length?`<optgroup label="Archived">${opts(arch)}</optgroup>`:''}</select></label>`;
-  const ended=d=>(s.joined&&d<s.joined)||d>today||(!s.active&&s.left&&d>s.left);
+  const sel=`<label class="field grow"><span>Student</span><select id="h-student">${opts(all.filter(x=>x.active))}${arch.length?`<optgroup label="Left">${opts(arch)}</optgroup>`:''}</select></label>`;
+  const ended=d=>(s.joined&&d<s.joined)||d>today||(!s.active&&s.left&&d>=s.left);
 
   // calendar
   const start=parse(m+'-01'), n=new Date(start.getFullYear(),start.getMonth()+1,0).getDate(), lead=(start.getDay()+6)%7;
@@ -442,7 +442,7 @@ function histStudent(seg){
   if(curSt.k==='upcoming')fees.push(feeRow(thisMonth,feeChip(curSt)));
   const fNote=curSt.k==='notyet'?`<p class="hint">First fee due on ${fmtDate(dueDate(curSt.f))}.</p>`:'';
 
-  return bar(sel)+`<div class="card"><div class="profile"><span class="av">${esc(initials(s.name))}</span><div class="grow"><div class="rowline"><b style="font-size:18px">${esc(s.name)}</b>${s.active?'':'<span class="pill">archived</span>'}<button class="btn sm" style="margin-left:auto" data-act="student-edit" data-id="${s.id}">Edit</button></div>
+  return bar(sel)+`<div class="card"><div class="profile"><span class="av">${esc(initials(s.name))}</span><div class="grow"><div class="rowline"><b style="font-size:18px">${esc(s.name)}</b>${s.active?'':'<span class="pill">left</span>'}<button class="btn sm" style="margin-left:auto" data-act="student-edit" data-id="${s.id}">Edit</button></div>
       <small>${esc(b?b.name:'No batch')}${b&&b.time?' · '+esc(b.time):''}</small><small>Joined ${fmtDate(s.joined)||'—'}${s.phone?' · 📞 '+esc(s.phone):''}</small>${s.notes?`<small>${esc(s.notes)}</small>`:''}</div></div></div>
     <div class="stats"><div class="stat ok"><small>${monthLabel(m)}</small><b>${att} / ${att+miss}</b><small>classes attended</small></div>
       <div class="stat"><small>Since joining</small><b>${oH?Math.round(oA/oH*100)+'%':'—'}</b><small>${oA} of ${oH} classes</small></div>
@@ -462,7 +462,7 @@ function viewStudents(){
   let h=`<div class="bar"><input class="grow" id="s-search" type="search" value="${esc(ui.search)}" placeholder="🔍  Search students" aria-label="Search students" style="flex:1 1 180px">
     <button class="btn primary" data-act="student-new">+ Add student</button></div>`;
   if(!list.length)h+=empty(q?'No matches':'No students yet',q?'':'Add your students and choose their batch.','');
-  else h+='<div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">archived</span>'}<small>${esc(b?b.name:'No batch')}${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">Fee due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
+  else h+='<div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">left</span>'}<small>${esc(b?b.name:'No batch')}${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">Fee due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
   if(arch)h+=`<p style="text-align:center;margin-top:16px"><button class="link u" data-act="toggle-arch">${ui.showArchived?'Hide':'Show'} past students (${arch})</button></p>`;
   return h;
 }
@@ -497,7 +497,7 @@ function monthData(m){
   const held={};keys.forEach(k=>{const b=k.split('|')[1];held[b]=(held[b]||0)+1});
   const rows=state.students.filter(s=>s.active||paymentFor(s.id,m)||keys.some(k=>state.attendance[k].includes(s.id))).sort(byName).map(s=>{
     const att=keys.filter(k=>state.attendance[k].includes(s.id)).length;
-    const h=keys.filter(k=>{const [d,b]=k.split('|');return state.attendance[k].includes(s.id)||(b===s.batchId&&(!s.joined||d>=s.joined))}).length;
+    const h=keys.filter(k=>{const [d,b]=k.split('|');return state.attendance[k].includes(s.id)||(b===s.batchId&&(!s.joined||d>=s.joined)&&(s.active||!s.left||d<s.left))}).length;
     return {s,att,h,pct:h?Math.round(att/h*100):null,st:feeStatus(s,m)};
   });
   return {held,rows};
@@ -588,7 +588,7 @@ function studentForm(s){
     <label class="field grow"><span>Joined on</span><input name="joined" type="date" required value="${s.joined||''}"></label></div>
     <p class="hint" id="first-due" style="margin:-6px 0 0">${firstDueText(s.joined)}</p>
     <label class="field"><span>Notes (optional)</span><textarea name="notes" rows="2">${esc(s.notes)}</textarea></label>
-    <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn sm" data-act="student-archive" data-id="${s.id}">${s.active?'Archive':'Restore'}</button><button type="button" class="btn danger sm" data-act="student-delete" data-id="${s.id}">Delete</button></span>`}${cancelBtns(isNew?'Add':'Save')}</div>`,
+    <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn sm" data-act="student-archive" data-id="${s.id}">${s.active?'Mark as left':'Re-join'}</button><button type="button" class="btn danger sm" data-act="student-delete" data-id="${s.id}">Delete</button></span>`}${cancelBtns(isNew?'Add':'Save')}</div>`,
   fd=>{const d={name:fd.get('name').trim(),phone:fd.get('phone').trim(),batchId:fd.get('batchId'),fee:Number(fd.get('fee')||0),joined:fd.get('joined'),notes:fd.get('notes').trim()};
     if(!d.name)return false;
     if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}else Object.assign(studentById(s.id)||s,d);});
@@ -654,7 +654,7 @@ const ACT={
   },
   'student-new':()=>studentForm(),
   'student-edit':id=>studentForm(studentById(id)),
-  'student-archive':id=>{const s=studentById(id);s.active=!s.active;if(s.active)delete s.left;else s.left=today;dlg.close();save();render();toast(s.name+(s.active?' restored':' archived — history kept'))},
+  'student-archive':id=>{const s=studentById(id);s.active=!s.active;if(s.active)delete s.left;else s.left=today;dlg.close();save();render();toast(s.name+(s.active?' is back in the class':' marked as left — history kept'))},
   'student-delete':id=>{
     const s=studentById(id);
     if(!confirm(`Delete ${s.name} permanently?\n\nTheir attendance and payment history will be removed too. Use “Archive” instead if they have just left the class.`))return;
