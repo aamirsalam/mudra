@@ -461,6 +461,11 @@ function viewStudents(){
   const list=state.students.filter(s=>(ui.showArchived||s.active)&&(!q||s.name.toLowerCase().includes(q)||(s.phone||'').includes(q))).sort(byName);
   let h=`<div class="bar"><input class="grow" id="s-search" type="search" value="${esc(ui.search)}" placeholder="🔍  Search students" aria-label="Search students" style="flex:1 1 180px">
     <button class="btn primary" data-act="student-new">+ Add student</button></div>`;
+  const cur=state.students.filter(s=>s.active);
+  if(cur.length){
+    const per=state.batches.map(b=>[b.name,cur.filter(s=>s.batchId===b.id).length]).filter(x=>x[1]);
+    h+=`<p class="sub" style="margin:2px 2px 10px"><b style="color:var(--ink)">${cur.length} student${cur.length===1?'':'s'}</b>${per.length>1?' · '+per.map(([n,c])=>`${esc(n)} ${c}`).join(' · '):''}</p>`;
+  }
   if(!list.length)h+=empty(q?'No matches':'No students yet',q?'':'Add your students and choose their batch.','');
   else h+='<div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">left</span>'}<small>${esc(b?b.name:'No batch')}${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">Fee due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
   if(arch)h+=`<p style="text-align:center;margin-top:16px"><button class="link u" data-act="toggle-arch">${ui.showArchived?'Hide':'Show'} past students (${arch})</button></p>`;
