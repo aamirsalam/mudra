@@ -18,8 +18,9 @@ header img{width:40px;height:40px;border-radius:10px}
 header h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.02em;line-height:1.1}
 header small{opacity:.8;font-size:13px}
 nav{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;overflow-x:auto}
-nav button{flex:1;min-width:84px;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:14px 10px;border-bottom:3px solid transparent;cursor:pointer}
-nav button.on{color:var(--accent);border-bottom-color:var(--gold)}
+.navpill{position:absolute;left:0;bottom:0;height:3px;width:0;border-radius:3px;background:var(--gold);pointer-events:none;z-index:0;will-change:transform,width}
+nav button{flex:1;min-width:84px;border:0;background:none;color:var(--muted);font:inherit;font-weight:600;padding:14px 10px;cursor:pointer;position:relative;z-index:1;transition:color .25s,transform .18s cubic-bezier(.3,1.4,.5,1);-webkit-tap-highlight-color:transparent}
+nav button.on{color:var(--accent)}
 main{max-width:1000px;margin:0 auto;padding:16px 16px 60px}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px}
 .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:600}
@@ -122,12 +123,21 @@ input[type=date],input[type=month]{-webkit-appearance:none;appearance:none;displ
 dialog{max-height:calc(100dvh - 32px);overflow:auto}
 @media (max-width:640px){
   header{padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}header img{width:34px;height:34px}header h1{font-size:19px}
-  nav{position:fixed;top:auto;bottom:0;left:0;right:0;border-top:1px solid var(--line);border-bottom:0;overflow:visible;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 12px rgba(0,0,0,.06)}
-  nav button{min-width:0;padding:8px 2px 7px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;border-bottom:0;border-top:3px solid transparent}
-  nav button.on{border-top-color:var(--gold)}
+  nav{position:fixed;top:auto;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));padding:6px;border-radius:32px;overflow:visible;touch-action:none;
+    border:1px solid color-mix(in srgb,var(--line) 70%,transparent);
+    background:color-mix(in srgb,var(--card) 70%,transparent);
+    -webkit-backdrop-filter:blur(22px) saturate(1.8);backdrop-filter:blur(22px) saturate(1.8);
+    box-shadow:0 10px 30px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.08),inset 0 1px 0 rgba(255,255,255,.22)}
+  nav button{min-width:0;padding:7px 2px 6px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;border-radius:26px}
+  nav button:active{transform:scale(.9)}
+  nav button.near{color:var(--accent)}
+  .navpill{top:6px;bottom:6px;height:auto;border-radius:26px;
+    background:color-mix(in srgb,var(--accent) 15%,transparent);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .navpill.drag{transition:none;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent),inset 0 1px 0 rgba(255,255,255,.35),0 8px 22px color-mix(in srgb,var(--accent) 28%,transparent)}
   nav svg{display:block}
-  main{padding:12px 12px calc(84px + env(safe-area-inset-bottom))}
-  #toast{bottom:calc(86px + env(safe-area-inset-bottom))}
+  main{padding:12px 12px calc(100px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(96px + env(safe-area-inset-bottom))}
   .bar>.field{flex:1 1 140px}
   .tiles{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
   .tile{min-height:112px;padding:12px 6px}.tile .av{width:44px;height:44px;font-size:16px}
@@ -155,6 +165,7 @@ details.adv summary::-webkit-details-marker{display:none}
 .envtag{background:var(--gold);color:#2a1a14;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;letter-spacing:.06em}
 #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,140px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;transition:transform .25s;z-index:20;font-weight:600;max-width:calc(100vw - 32px)}
 #toast.show{transform:translate(-50%,0)}
+@media (max-width:640px){#toast{bottom:calc(98px + env(safe-area-inset-bottom))}}
 </style>
 </head>
 <body>
@@ -601,6 +612,50 @@ function viewSettings(){
       <p class="hint" style="margin-top:8px">Restoring a backup replaces everything on all devices.</p></details></div>`;
 }
 
+/* ---------- liquid tab indicator ---------- */
+const navEl=document.querySelector('nav'), pill=document.createElement('span');
+pill.className='navpill';navEl.prepend(pill);
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)'), isPhone=matchMedia('(max-width:640px)');
+let pillPos=null, pillTab=null;
+const setPill=(x,w,extra='')=>{pill.style.transform=`translateX(${x}px)${extra}`;pill.style.width=w+'px'};
+function placePill(animate){
+  const btn=navEl.querySelector('button.on');if(!btn||navEl.hidden)return;
+  const to={x:btn.offsetLeft,w:btn.offsetWidth};
+  if(animate&&pillPos&&!reduceMotion.matches&&Math.abs(pillPos.x-to.x)>1){
+    // stretch across both tabs like a drop of liquid, then settle with a little overshoot
+    const from=pillPos,l=Math.min(from.x,to.x),r=Math.max(from.x+from.w,to.x+to.w),span=r-l;
+    pill.animate([
+      {transform:`translateX(${from.x}px) scaleY(1)`,width:from.w+'px'},
+      {transform:`translateX(${l+span*.06}px) scaleY(.86)`,width:span*.88+'px',offset:.42},
+      {transform:`translateX(${to.x}px) scaleY(1.04)`,width:to.w+'px',offset:.78},
+      {transform:`translateX(${to.x}px) scaleY(1)`,width:to.w+'px'}],
+      {duration:520,easing:'cubic-bezier(.33,1.1,.5,1)'});
+  }
+  setPill(to.x,to.w);pillPos=to;
+}
+// drag along the bar to scrub between tabs (phone)
+let drag=null, eatClick=false;
+const nearestTab=x=>[...navEl.querySelectorAll('button')].reduce((a,b)=>Math.abs(b.offsetLeft+b.offsetWidth/2-x)<Math.abs(a.offsetLeft+a.offsetWidth/2-x)?b:a);
+navEl.addEventListener('pointerdown',e=>{if(!isPhone.matches||!pillPos)return;drag={x0:e.clientX,id:e.pointerId,moved:false}});
+navEl.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.moved&&Math.abs(e.clientX-drag.x0)<10)return;
+  if(!drag.moved){drag.moved=true;navEl.setPointerCapture(e.pointerId);pill.classList.add('drag')}
+  const x=e.clientX-navEl.getBoundingClientRect().left, w=pillPos.w;
+  const nx=Math.max(6,Math.min(navEl.clientWidth-w-6,x-w/2));
+  setPill(nx,w,' scale(1.1,1.12)');pillPos={x:nx,w};
+  const nb=nearestTab(x);navEl.querySelectorAll('button').forEach(b=>b.classList.toggle('near',b===nb));
+});
+const endDrag=e=>{
+  if(!drag)return;const d=drag;drag=null;if(!d.moved)return;
+  pill.classList.remove('drag');navEl.querySelectorAll('button.near').forEach(b=>b.classList.remove('near'));
+  eatClick=true;setTimeout(()=>eatClick=false,350);
+  const nb=nearestTab(e.clientX-navEl.getBoundingClientRect().left);
+  if(nb.dataset.id!==tab)ACT.tab(nb.dataset.id);else placePill(true);
+};
+navEl.addEventListener('pointerup',endDrag);navEl.addEventListener('pointercancel',endDrag);
+navEl.addEventListener('click',e=>{if(eatClick){e.stopPropagation();e.preventDefault();eatClick=false}},true);
+window.addEventListener('resize',()=>placePill(false));
 const VIEWS={today:viewToday,history:viewHistory,students:viewStudents,fees:viewFees,reports:viewReports,settings:viewSettings};
 function gate(){
   const card=(t,p,a)=>`<div class="gate"><img src="icon-192.png" alt=""><h2>${t}</h2>${p?`<p>${p}</p>`:''}${a||''}</div>`;
@@ -614,7 +669,9 @@ function render(){
   const ready=phase==='ready';
   document.querySelector('nav').hidden=!ready;
   if(!ready){document.getElementById('main').innerHTML=gate();return}
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===(tab==='reports'?'settings':tab)));
+  const navTab=tab==='reports'?'settings':tab;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.id===navTab));
+  placePill(pillTab!==null&&pillTab!==navTab);pillTab=navTab;
   document.getElementById('main').innerHTML=migrateBanner()+VIEWS[tab]();
 }
 

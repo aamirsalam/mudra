@@ -223,10 +223,32 @@ async def offline_sw(b):
     check('opens offline with data (service worker)', await pg.locator('.tile').count() > 0)
     await ctx.close()
 
+async def tabbar(b):
+    ctx, pg = await new_page(b, mobile=True, has_touch=False)
+    await signed_in_with_sample(pg)
+    await pg.click('nav >> text=Fees'); await pg.wait_for_timeout(700)
+    off = await pg.evaluate("(()=>{const p=document.querySelector('.navpill').getBoundingClientRect(),b=document.querySelector('nav button.on').getBoundingClientRect();return Math.abs(p.left-b.left)+Math.abs(p.width-b.width)})()")
+    check('tab bar: highlight lines up with active tab', off < 3, f'offset={off}')
+    # drag from Fees to Today along the bar
+    fb = await pg.locator('nav button[data-id=fees]').bounding_box(); tb = await pg.locator('nav button[data-id=today]').bounding_box()
+    y = fb['y'] + fb['height'] / 2
+    await pg.mouse.move(fb['x'] + fb['width'] / 2, y); await pg.mouse.down()
+    for i in range(1, 11):
+        await pg.mouse.move(fb['x'] + fb['width'] / 2 + (tb['x'] - fb['x']) * i / 10, y); await pg.wait_for_timeout(16)
+    await pg.mouse.up(); await pg.wait_for_timeout(700)
+    on = await pg.evaluate("document.querySelector('nav button.on').dataset.id")
+    check('tab bar: drag to scrub switches tab', on == 'today', on)
+    check('tab bar: Today content shown after drag', await pg.locator('#t-date').count() == 1)
+    await pg.wait_for_timeout(2600); await pg.evaluate("document.querySelector('#toast').classList.add('show')"); await pg.wait_for_timeout(350)
+    gap = await pg.evaluate("document.querySelector('nav').getBoundingClientRect().top-document.querySelector('#toast').getBoundingClientRect().bottom")
+    check('toast sits above the tab bar', gap > 0, f'gap={gap}')
+    check('no JS errors (tab bar)', not pg.errors, pg.errors[:2])
+    await ctx.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
-        for suite in (core, features, resilience, offline_sw):
+        for suite in (core, features, resilience, tabbar, offline_sw):
             try: await suite(b)
             except Exception as e: check(f'{suite.__name__} crashed', False, repr(e)[:300])
         await b.close()
