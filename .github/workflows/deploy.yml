@@ -5,14 +5,44 @@ name: Deploy
 on:
   push:
     branches: [dev, main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref_name }}
-  cancel-in-progress: true
+  # never cancel a PROD deploy half-way; superseded TEST runs can be cancelled
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
 
 jobs:
+  test:
+    # Browser tests against a fake Firebase (tests/e2e.py). A failure blocks the deploy.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright + Chromium
+        run: |
+          pip install playwright==1.63.0
+          python -m playwright install --with-deps chromium
+      - name: Syntax check
+        run: |
+          python - <<'PY'
+          import re,json
+          s=open('public/index.html').read()
+          open('/tmp/app.mjs','w').write(re.search(r'<script type="module">(.*?)</script>',s,re.S).group(1))
+          json.load(open('firebase.json')); json.load(open('public/manifest.json'))
+          PY
+          node --check /tmp/app.mjs && node --check public/sw.js
+      - name: End-to-end tests
+        run: python tests/e2e.py
+
   deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # GitHub Environments "test" and "prod" each hold their own FIREBASE_SERVICE_ACCOUNT secret.
     environment: ${{ github.ref_name == 'main' && 'prod' || 'test' }}

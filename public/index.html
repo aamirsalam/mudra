@@ -72,6 +72,11 @@ th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);whit
 tr:last-child td{border-bottom:0}
 th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .num{text-align:right}
+.bars{display:flex;align-items:flex-end;gap:4px;height:130px;margin-top:6px}
+.barc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.ibar{width:100%;max-width:28px;background:var(--gold);border-radius:4px 4px 0 0;min-height:2px;opacity:.7}
+.barc.cur .ibar{background:var(--accent);opacity:1}
+.barc small{font-size:10px;color:var(--muted);margin-top:3px}.bv{font-size:9px;color:var(--muted);margin-bottom:2px}
 .pct{height:6px;background:var(--tile);border-radius:3px;margin-top:4px;overflow:hidden;min-width:60px}.pct i{display:block;height:100%;background:var(--gold)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
 .seg button{border:0;background:none;font:inherit;font-weight:600;padding:10px 16px;min-height:44px;color:var(--muted);cursor:pointer}
@@ -87,10 +92,11 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04
 .cal .d.miss{background:var(--due-bg);color:var(--due);border-color:var(--due)}
 .cal .d.nm{border:2px dashed var(--line);color:var(--ink)}
 .cal .d.off{color:var(--muted);opacity:.45}
+.cal .d.hol{background:var(--tile);color:var(--muted);border:2px solid var(--line)}
 .cal .d.today{box-shadow:0 0 0 2px var(--gold)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:10px}
 .legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px}
-.legend .la::before{background:var(--ok)}.legend .lm::before{background:var(--due)}.legend .ln::before{border:2px dashed var(--muted);width:8px;height:8px}
+.legend .la::before{background:var(--ok)}.legend .lh::before{background:var(--tile);border:1px solid var(--muted);width:10px;height:10px}.legend .lm::before{background:var(--due)}.legend .ln::before{border:2px dashed var(--muted);width:8px;height:8px}
 dialog{border:0;border-radius:18px;padding:0;width:min(480px,calc(100vw - 32px));background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3)}
 dialog::backdrop{background:rgba(30,10,10,.45)}
 dialog form{padding:20px;display:flex;flex-direction:column;gap:14px}
@@ -171,13 +177,14 @@ setTimeout(function(){if(!window.__booted){document.getElementById('main').inner
 <script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {getAuth,onAuthStateChanged,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,signOut} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,collection,onSnapshot,writeBatch,terminate,clearIndexedDbPersistence} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,collection,onSnapshot,writeBatch,terminate,clearIndexedDbPersistence,waitForPendingWrites} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 window.__booted=true;
 const ENV=window.MUDRA_ENV||null;
 const IS_PROD=!ENV||ENV.name==='prod';
 /* ---------- constants & helpers ---------- */
 const STUDIO='Mudra';
 const DEFAULT_MSG="Namaste! A gentle reminder that {name}'s fee of {amount} for {month} at Mudra is due on {due}. Thank you!";
+const DEFAULT_RECEIPT="Received {amount} towards {name}'s {month} fee at Mudra on {date}. Thank you! 🙏";
 const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const WEEK=[1,2,3,4,5,6,0];
 const pad=n=>String(n).padStart(2,'0');
@@ -193,10 +200,10 @@ const dayMonth=s=>parse(s).toLocaleDateString('en-IN',{day:'numeric',month:'shor
 const addMonth=(m,n)=>{const d=parse(m+'-01');d.setMonth(d.getMonth()+n);return ymd(d).slice(0,7)};
 const initials=n=>n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
 const byName=(a,b)=>a.name.localeCompare(b.name);
-const fresh=()=>({version:2,batches:[],students:[],attendance:{},payments:[],lastBackup:null,defaultFee:1000,dueDay:15,waTemplate:DEFAULT_MSG});
+const fresh=()=>({version:3,batches:[],students:[],attendance:{},off:{},payments:[],lastBackup:null,defaultFee:1000,dueDay:15,waTemplate:DEFAULT_MSG,receiptTemplate:DEFAULT_RECEIPT});
 
 let state=fresh(), tab='today';
-const today=ymd(new Date()), thisMonth=today.slice(0,7);
+let today=ymd(new Date()), thisMonth=today.slice(0,7);
 const ui={date:today,batch:null,month:thisMonth,search:'',showArchived:false,lastMode:'UPI',hist:'classes',hBatch:null,hStudent:null};
 
 /* ---------- cloud data layer (Firebase Auth + Firestore) ----------
@@ -214,11 +221,17 @@ let synced={}, sigs={}, loaded={}, server={}, serverSynced=false, unsub=[], pend
 const clean=o=>JSON.parse(JSON.stringify(o));
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
 const stable=o=>JSON.stringify(sortKeys(o));
-const settingsOf=()=>({defaultFee:state.defaultFee,dueDay:state.dueDay,waTemplate:state.waTemplate,lastBackup:state.lastBackup});
+const settingsOf=()=>({defaultFee:state.defaultFee,dueDay:state.dueDay,waTemplate:state.waTemplate,receiptTemplate:state.receiptTemplate,lastBackup:state.lastBackup});
 function toDocs(){
   const byId=a=>new Map(a.map(x=>{const d=clean(x);delete d.id;return [x.id,d]}));
   return {batches:byId(state.batches),students:byId(state.students),payments:byId(state.payments),
-    attendance:new Map(Object.entries(state.attendance).map(([k,v])=>{const [date,batchId]=k.split('|');return [k,{date,batchId,present:v}]}))};
+    attendance:attDocs()};
+}
+// attendance collection holds both marked classes and "no class" days (off:true)
+function attDocs(){
+  const m=new Map(Object.entries(state.attendance).map(([k,v])=>{const [date,batchId]=k.split('|');return [k,{date,batchId,present:v}]}));
+  Object.entries(state.off||{}).forEach(([k,r])=>{const [date,batchId]=k.split('|');m.set(k,{date,batchId,present:[],off:true,reason:r})});
+  return m;
 }
 function save(){
   if(phase!=='ready'||!db)return;
@@ -239,27 +252,35 @@ function save(){
 function stopSync(){unsub.forEach(f=>{try{f()}catch(e){}});unsub=[]}
 function softRender(){if(dlg.open){pendingRender=true;return}render()}
 function onData(name,snap,sig,apply){
-  if(!snap.metadata.fromCache)server[name]=true;
+  if(!snap.metadata.fromCache){server[name]=true;retryN=0}
   let changed=!loaded[name];loaded[name]=true;
   if(sig!==sigs[name]){sigs[name]=sig;apply();changed=true}
-  if(phase==='loading'&&SOURCES.every(n=>loaded[n])){phase='ready';changed=true}
   if(!serverSynced&&SOURCES.every(n=>server[n])){serverSynced=true;changed=true}
+  // Don't show an empty app from an empty offline cache: wait for the server unless the cache has data
+  if(phase==='loading'&&SOURCES.every(n=>loaded[n])&&(serverSynced||state.batches.length||state.students.length)){phase='ready';changed=true}
   if(changed&&phase==='ready')softRender();
 }
-function subscribe(){
+// Firestore listeners stop for good after an error; re-subscribe with backoff, keeping what's on screen
+let retryT=null, retryN=0;
+function scheduleResync(now){
+  stopSync();if(retryT)clearTimeout(retryT);
+  const ms=now?0:Math.min(60000,5000*2**retryN++);
+  retryT=setTimeout(()=>{retryT=null;if(user&&phase!=='denied')subscribe(true)},ms);
+}
+function subscribe(keep){
   stopSync();
-  synced={settings:null};COLS.forEach(c=>synced[c]=new Map());
-  sigs={};loaded={};server={};serverSynced=false;state=fresh();
+  if(!keep){synced={settings:null};COLS.forEach(c=>synced[c]=new Map());sigs={};serverSynced=false;state=fresh()}
+  loaded={};server={};
   const onErr=e=>{console.error(e);
-    if(e.code==='permission-denied'){phase='denied';stopSync();render()}
-    else toast('Sync problem: '+(e.code||e.message))};
+    if(e.code==='permission-denied'){phase='denied';stopSync();render();return}
+    if(!retryT){if(!retryN)toast('Connection problem — retrying…');scheduleResync()}};
   const opts={includeMetadataChanges:true};
   unsub.push(onSnapshot(doc(db,...BASE),opts,snap=>{
     const d=snap.exists()?snap.data():null;
     onData('settings',snap,d?stable(d):'none',()=>{
       const f=fresh(),x=d||{};
       state.defaultFee=x.defaultFee??f.defaultFee;state.dueDay=x.dueDay??f.dueDay;
-      state.waTemplate=x.waTemplate||f.waTemplate;state.lastBackup=x.lastBackup??null;
+      state.waTemplate=x.waTemplate||f.waTemplate;state.receiptTemplate=x.receiptTemplate||f.receiptTemplate;state.lastBackup=x.lastBackup??null;
       synced.settings=d?stable(d):null;
     });
   },onErr));
@@ -267,7 +288,8 @@ function subscribe(){
     const rows=snap.docs.map(x=>[x.id,x.data()]);
     onData(c,snap,stable(rows),()=>{
       synced[c]=new Map(rows.map(([id,d])=>[id,stable(d)]));
-      if(c==='attendance')state.attendance=Object.fromEntries(rows.map(([id,d])=>[id,d.present||[]]));
+      if(c==='attendance'){state.attendance=Object.fromEntries(rows.filter(([,d])=>!d.off).map(([id,d])=>[id,d.present||[]]));
+        state.off=Object.fromEntries(rows.filter(([,d])=>d.off).map(([id,d])=>[id,d.reason||'No class']))}
       else state[c]=rows.map(([id,d])=>({id,...d}));
     });
   },onErr)));
@@ -283,6 +305,11 @@ async function signIn(){
   }
 }
 async function doSignOut(){
+  if(phase==='ready'){
+    if(!navigator.onLine){alert("You're offline. Connect to the internet first so your latest changes are saved, then sign out.");return}
+    try{await Promise.race([waitForPendingWrites(db),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))])}
+    catch(e){if(!confirm("Some recent changes haven't reached the cloud yet. Sign out anyway? Those changes will be lost."))return}
+  }
   stopSync();
   try{await terminate(db);await clearIndexedDbPersistence(db)}catch(e){}
   try{await signOut(auth)}catch(e){}
@@ -337,6 +364,9 @@ function feeChip(st){return{
   paid:'<span class="chip ok">Paid</span>',free:'<span class="chip none">No fee</span>',na:'<span class="chip none">—</span>',
   notyet:`<span class="chip none">First fee ${st.f?shortMonth(st.f):''}</span>`,
   overdue:'<span class="chip due">Overdue</span>',upcoming:`<span class="chip up">Due ${st.due?dayMonth(st.due):''}</span>`}[st.k]}
+const waNumber=p=>{let n=(p||'').replace(/\D/g,'').replace(/^0+/,'');if(n.length===10)n='91'+n;return n.length>=11?n:''};
+const fillReceipt=(s,p)=>(state.receiptTemplate||DEFAULT_RECEIPT).replace(/\{(\w+)\}/g,(x,k)=>({name:s.name,amount:rupee(p.amount),month:monthLabel(p.month),date:fmtDate(p.date),mode:p.mode,studio:STUDIO})[k]??x);
+const sendReceipt=(s,p)=>{const n=waNumber(s.phone);if(n)window.open('https://wa.me/'+n+'?text='+encodeURIComponent(fillReceipt(s,p)),'_blank')};
 const fillMsg=(s,m)=>(state.waTemplate||DEFAULT_MSG).replace(/\{(\w+)\}/g,(x,k)=>({name:s.name,amount:rupee(s.fee),month:monthLabel(m),due:fmtDate(dueDate(m)),studio:STUDIO})[k]??x);
 
 /* ---------- UI bits ---------- */
@@ -350,7 +380,9 @@ function backupBanner(){
   return `<div class="banner"><span class="grow">${lb?`Last backup was ${days} days ago.`:'No backup yet.'} Your data is in the cloud, but an occasional backup file is a good extra safety copy.</span><button class="btn sm" data-act="backup">Back up now</button></div>`;
 }
 const monthInput=id=>`<label class="field month"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
-const rosterOn=(bid,d)=>state.students.filter(s=>s.batchId===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&d<s.left)));
+// which batch a student was in on date d (prevBatches records moves: [{batchId, until}])
+const batchOn=(s,d)=>{for(const p of (s.prevBatches||[]))if(d<p.until)return p.batchId;return s.batchId};
+const rosterOn=(bid,d)=>state.students.filter(s=>batchOn(s,d)===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&d<s.left)));
 
 /* ---------- Today ---------- */
 function viewToday(){
@@ -365,10 +397,12 @@ function viewToday(){
     <label class="field grow"><span>Batch</span><select id="t-batch">${state.batches.map(x=>`<option value="${x.id}"${x.id===b.id?' selected':''}>${esc(x.name)}${x.days.includes(wd)?'  •  class day':''}</option>`).join('')}</select></label>
     ${ui.date!==today?'<button class="btn" data-act="go-today">Back to today</button>':''}</div>
     <div class="sub">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · ${scheduled?'Class day':`${esc(b.name)} usually meets ${WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'—'}`}${b.time?' · '+esc(b.time):''}</div>`;
+  const offR=state.off[key];
+  if(offR)return h+`<div class="empty"><h3>🌙 No class — ${esc(offR)}</h3><p>This day won't count as a missed class for anyone.</p><button class="btn" data-act="class-on">Class did happen — mark attendance</button></div>`;
   if(!list.length)return h+empty('No students in this batch yet','','<button class="btn primary" data-act="student-new">Add a student</button>');
   const n=list.filter(s=>present.has(s.id)).length;
   h+=`<div class="countrow"><div class="count"><b>${n}</b> / ${list.length} present ${rec?'':'<span class="pill">not marked yet</span>'}</div>
-    <div class="row"><button class="btn" data-act="all-present">Mark all present</button>${rec?'<button class="btn ghost" data-act="clear-day">Clear</button>':''}</div></div>
+    <div class="row"><button class="btn" data-act="all-present">Mark all present</button>${rec?'<button class="btn ghost" data-act="clear-day">Clear</button>':'<button class="btn ghost" data-act="no-class">No class</button>'}</div></div>
     <div class="tiles">${list.map(s=>{const on=present.has(s.id);return `<button class="tile${on?' on':''}" data-act="toggle" data-id="${s.id}" aria-pressed="${on}"><span class="av">${esc(initials(s.name))}</span><span class="nm">${esc(s.name)}</span><span class="st">${on?'✓ Present':'Tap to mark'}</span></button>`}).join('')}</div>`;
   return h;
 }
@@ -382,7 +416,7 @@ function viewHistory(){
 function classDates(bid,m){
   const b=batchById(bid), set=new Set(), start=parse(m+'-01');
   for(let d=new Date(start);d.getMonth()===start.getMonth();d.setDate(d.getDate()+1)){const s=ymd(d);if(s>today)break;if(b.days.includes(d.getDay()))set.add(s)}
-  Object.keys(state.attendance).forEach(k=>{const [d,id]=k.split('|');if(id===bid&&d.slice(0,7)===m)set.add(d)});
+  [...Object.keys(state.attendance),...Object.keys(state.off)].forEach(k=>{const [d,id]=k.split('|');if(id===bid&&d.slice(0,7)===m)set.add(d)});
   return [...set].sort().reverse();
 }
 function histClasses(seg){
@@ -391,6 +425,7 @@ function histClasses(seg){
   let held=0,sum=0,unmarked=0;
   const items=dates.map(d=>{
     const rec=state.attendance[d+'|'+bid], label=parse(d).toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+    if(state.off[d+'|'+bid])return `<button class="item compact" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>${esc(state.off[d+'|'+bid])}</small></span><span class="chip none">No class</span><span class="chev">›</span></button>`;
     if(!rec){unmarked++;return `<button class="item" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>No attendance recorded — tap to mark it, or ignore if there was no class</small></span><span class="chip up">Not marked</span><span class="chev">›</span></button>`}
     const p=new Set(rec), roster=rosterOn(bid,d);
     rec.forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
@@ -415,7 +450,7 @@ function histStudent(seg){
 
   // calendar
   const start=parse(m+'-01'), n=new Date(start.getFullYear(),start.getMonth()+1,0).getDate(), lead=(start.getDay()+6)%7;
-  let att=0,miss=0,nm=0;const cells=[];
+  let att=0,miss=0,nm=0,hol=0;const cells=[];
   for(let i=0;i<lead;i++)cells.push('<div></div>');
   for(let i=1;i<=n;i++){
     const d=m+'-'+pad(i), wd=parse(d).getDay();
@@ -423,19 +458,21 @@ function histStudent(seg){
     let c='off',mk='';
     if(went){c='att';mk='✓';att++}
     else if(ended(d)){}
-    else if(state.attendance[d+'|'+s.batchId]){c='miss';mk='✗';miss++}
-    else if(b&&b.days.includes(wd)){c='nm';mk='?';nm++}
+    else{const bk=d+'|'+batchOn(s,d), bb=batchById(batchOn(s,d));
+      if(state.off[bk]){c='hol';mk='–';hol++}
+      else if(state.attendance[bk]){c='miss';mk='✗';miss++}
+      else if(bb&&bb.days.includes(wd)){c='nm';mk='?';nm++}}
     cells.push(`<div class="d ${c}${d===today?' today':''}" title="${d}">${i}${mk?`<i>${mk}</i>`:''}</div>`);
   }
   // overall since joining
   let oA=0,oH=0;
   Object.keys(state.attendance).forEach(k=>{const [d,bid]=k.split('|');const was=state.attendance[k].includes(s.id);
-    if(was){oA++;oH++}else if(bid===s.batchId&&!ended(d))oH++});
+    if(was){oA++;oH++}else if(bid===batchOn(s,d)&&!ended(d))oH++});
 
   // fees
   const st=feeStatus(s,m), over=overdueMonths(s,thisMonth);
   const curSt=feeStatus(s,thisMonth);
-  const feeRow=(mm,chip)=>`<div class="item"><span class="grow"><b>${monthLabel(mm)}</b><small>${rupee(s.fee)} · due ${fmtDate(dueDate(mm))}</small></span><span class="actions">${chip}${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${mm}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${mm}">Mark paid</button></span></div>`;
+  const feeRow=(mm,chip)=>`<div class="item"><span class="grow"><b>${monthLabel(mm)}</b><small>${rupee(s.fee)} · due ${fmtDate(dueDate(mm))}</small></span><span class="actions">${chip}${waNumber(s.phone)?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${mm}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${mm}">Mark paid</button></span></div>`;
   const pays=state.payments.filter(p=>p.studentId===s.id).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,6);
   const fees=[];
   over.forEach(mm=>fees.push(feeRow(mm,'<span class="chip due">Overdue</span>')));
@@ -449,16 +486,13 @@ function histStudent(seg){
 </div>
     <div class="card"><h2>Attendance — ${monthLabel(m)}</h2>
       <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="h">${x}</div>`).join('')}${cells.join('')}</div>
-      <div class="legend"><span class="la">Attended (${att})</span><span class="lm">Missed (${miss})</span>${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
+      <div class="legend"><span class="la">Attended (${att})</span><span class="lm">Missed (${miss})</span>${hol?`<span class="lh">No class (${hol})</span>`:''}${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
     <div class="card"><h2>Fees</h2>${fNote}${fees.length?'<div class="list">'+fees.join('')+'</div>':(Number(s.fee)>0&&curSt.k!=='notyet'?'<p class="hint">All fees paid up to date.</p>':'')}
-      ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item compact"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span><span class="chip ok">Paid</span></div>`).join('')}</div>`:''}</div>`;
+      ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item compact"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span>${waNumber(s.phone)?`<button class="btn sm ghost" data-act="receipt" data-id="${p.id}">Receipt</button>`:''}<span class="chip ok">Paid</span></div>`).join('')}</div>`:''}</div>`;
 }
 
 /* ---------- Students ---------- */
 function viewStudents(){
-  const q=ui.search.toLowerCase().trim();
-  const arch=state.students.filter(s=>!s.active).length;
-  const list=state.students.filter(s=>(ui.showArchived||s.active)&&(!q||s.name.toLowerCase().includes(q)||(s.phone||'').includes(q))).sort(byName);
   let h=`<div class="bar"><input class="grow" id="s-search" type="search" value="${esc(ui.search)}" placeholder="🔍  Search students" aria-label="Search students" style="flex:1 1 180px">
     <button class="btn primary" data-act="student-new">+ Add student</button></div>`;
   const cur=state.students.filter(s=>s.active);
@@ -466,6 +500,12 @@ function viewStudents(){
     const per=state.batches.map(b=>[b.name,cur.filter(s=>s.batchId===b.id).length]).filter(x=>x[1]);
     h+=`<p class="sub" style="margin:2px 2px 10px"><b style="color:var(--ink)">${cur.length} student${cur.length===1?'':'s'}</b>${per.length>1?' · '+per.map(([n,c])=>`${esc(n)} ${c}`).join(' · '):''}</p>`;
   }
+  return h+`<div id="s-list">${studentListHtml()}</div>`;
+}
+function studentListHtml(){
+  const q=ui.search.toLowerCase().trim(), arch=state.students.filter(s=>!s.active).length;
+  const list=state.students.filter(s=>(ui.showArchived||s.active)&&(!q||s.name.toLowerCase().includes(q)||(s.phone||'').includes(q))).sort(byName);
+  let h='';
   if(!list.length)h+=empty(q?'No matches':'No students yet',q?'':'Add your students and choose their batch.','');
   else h+='<div class="list">'+list.map(s=>{const b=batchById(s.batchId),o=s.active?overdueMonths(s,thisMonth).length:0;return `<button class="item" data-act="open-student" data-id="${s.id}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><b>${esc(s.name)}</b>${s.active?'':' <span class="pill">left</span>'}<small>${esc(b?b.name:'No batch')}${s.phone?' · '+esc(s.phone):''}</small></span>${o?`<span class="chip due">Fee due</span>`:''}<span class="chev">›</span></button>`}).join('')+'</div>';
   if(arch)h+=`<p style="text-align:center;margin-top:16px"><button class="link u" data-act="toggle-arch">${ui.showArchived?'Hide':'Show'} past students (${arch})</button></p>`;
@@ -482,13 +522,14 @@ function viewFees(){
   const paid=paidR.reduce((t,r)=>t+(Number(r.st.p.amount)||0),0), owed=due.reduce((t,r)=>t+Number(r.s.fee),0);
   let h=`<div class="bar">${monthInput('f-month')}</div>
     <p class="sub" style="margin-top:-2px">Due on <b>${fmtDate(dueDate(m))}</b></p>
-    <div class="stats"><div class="stat ok"><small>Collected</small><b>${rupee(paid)}</b></div>
-    <div class="stat ${due.some(r=>r.st.k==='overdue')?'due':'up'}"><small>To collect · ${due.length}</small><b>${rupee(owed)}</b></div></div>`;
+    <div class="stats"><div class="stat ok"><small>Paid for ${shortMonth(m)}</small><b>${rupee(paid)}</b></div>
+    <div class="stat ${due.some(r=>r.st.k==='overdue')?'due':'up'}"><small>To collect · ${due.length}</small><b>${rupee(owed)}</b></div></div>
+    <p class="hint" style="margin:-4px 2px 10px"><button class="link u" data-act="tab" data-id="reports">Money received in ${shortMonth(m)}: ${rupee(received(m).total)} ›</button></p>`;
   if(!rows.length)return h+empty('No fees for this month','','');
   const row=({s,st,earlier})=>{
     const isDue=st.k==='overdue'||st.k==='upcoming';
-    const right=isDue?`${st.k==='overdue'?feeChip(st):''}${s.phone?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${m}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${m}">Mark paid</button>`:feeChip(st);
-    const sub=st.p?`<small class="okt">${rupee(st.p.amount)} · ${esc(st.p.mode)} · ${dayMonth(st.p.date)} · <button class="link u" data-act="pay-undo" data-id="${st.p.id}">undo</button></small>`
+    const right=isDue?`${st.k==='overdue'?feeChip(st):''}${waNumber(s.phone)?`<button class="btn sm" data-act="remind" data-id="${s.id}" data-m="${m}">Remind</button>`:''}<button class="btn primary sm" data-act="pay" data-id="${s.id}" data-m="${m}">Mark paid</button>`:feeChip(st);
+    const sub=st.p?`<small class="okt">${rupee(st.p.amount)} · ${esc(st.p.mode)} · ${dayMonth(st.p.date)} ${waNumber(s.phone)?` · <button class="link u" data-act="receipt" data-id="${st.p.id}">receipt</button>`:''} · <button class="link u" data-act="pay-undo" data-id="${st.p.id}">undo</button></small>`
       :st.k==='notyet'?`<small>Joined ${fmtDate(s.joined)}</small>`:`<small>${rupee(s.fee)}</small>`;
     return `<div class="item${isDue?'':' compact'}"><span class="av">${esc(initials(s.name))}</span><span class="grow"><button class="link" data-act="open-student" data-id="${s.id}">${esc(s.name)}</button>${sub}${earlier?`<button class="link u" data-act="open-student" data-id="${s.id}">+ ${earlier} earlier month${earlier>1?'s':''} unpaid</button>`:''}</span><span class="actions">${right}</span></div>`;
   };
@@ -502,20 +543,31 @@ function monthData(m){
   const held={};keys.forEach(k=>{const b=k.split('|')[1];held[b]=(held[b]||0)+1});
   const rows=state.students.filter(s=>s.active||paymentFor(s.id,m)||keys.some(k=>state.attendance[k].includes(s.id))).sort(byName).map(s=>{
     const att=keys.filter(k=>state.attendance[k].includes(s.id)).length;
-    const h=keys.filter(k=>{const [d,b]=k.split('|');return state.attendance[k].includes(s.id)||(b===s.batchId&&(!s.joined||d>=s.joined)&&(s.active||!s.left||d<s.left))}).length;
+    const h=keys.filter(k=>{const [d,b]=k.split('|');return state.attendance[k].includes(s.id)||(b===batchOn(s,d)&&(!s.joined||d>=s.joined)&&(s.active||!s.left||d<s.left))}).length;
     return {s,att,h,pct:h?Math.round(att/h*100):null,st:feeStatus(s,m)};
   });
   return {held,rows};
 }
+// money actually received (by payment date), not fees 'for' a month
+const received=mon=>{const ps=state.payments.filter(p=>(p.date||'').slice(0,7)===mon),by={};let total=0;ps.forEach(p=>{const a=Number(p.amount)||0;total+=a;by[p.mode||'Other']=(by[p.mode||'Other']||0)+a});return{total,by,n:ps.length}};
+const fyStart=m=>{const y=+m.slice(0,4),mo=+m.slice(5,7);return (mo>=4?y:y-1)+'-04'};
 const statusText={paid:'Paid',free:'No fee',na:'',notyet:'Not yet due',overdue:'Overdue',upcoming:'Due'};
 function viewReports(){
   const m=ui.month,{held,rows}=monthData(m);
+  const inc=received(m), fs=fyStart(m), fe=addMonth(fs,11);
+  const fyTotal=state.payments.reduce((t,p)=>{const pm=(p.date||'').slice(0,7);return pm>=fs&&pm<=fe?t+(Number(p.amount)||0):t},0);
+  const last12=[...Array(12)].map((_,i)=>addMonth(m,i-11)).map(x=>[x,received(x).total]), mx=Math.max(1,...last12.map(x=>x[1]));
   let h=`<button class="link back" data-act="tab" data-id="settings">‹ Back to Settings</button>
-    <div class="bar">${monthInput('r-month')}</div>`;
+    <div class="bar">${monthInput('r-month')}</div>
+    <div class="card"><h2>Money received</h2>
+      <div class="stats" style="margin-bottom:6px"><div class="stat ok"><small>${monthLabel(m)}</small><b>${rupee(inc.total)}</b><small>${inc.n} payment${inc.n===1?'':'s'}${Object.keys(inc.by).length?' · '+Object.entries(inc.by).map(([k,v])=>`${esc(k)} ${rupee(v)}`).join(' · '):''}</small></div>
+      <div class="stat"><small>Financial year ${fs.slice(0,4)}–${String(+fs.slice(0,4)+1).slice(2)}</small><b>${rupee(fyTotal)}</b><small>Apr – Mar</small></div></div>
+      <div class="bars">${last12.map(([x,v])=>`<div class="barc${x===m?' cur':''}" title="${monthLabel(x)}: ${rupee(v)}"><span class="bv">${v?Math.round(v/1000)+'k':''}</span><div class="ibar" style="height:${Math.round(v/mx*100)}%"></div><small>${shortMonth(x).slice(0,3)}</small></div>`).join('')}</div>
+      <p class="hint" style="margin:8px 0 0">Counted by the date money was received.</p></div>`;
   if(state.batches.length)h+=`<div class="stats">${state.batches.map(b=>`<div class="stat"><small>${esc(b.name)}</small><b>${held[b.id]||0}</b><small>classes held</small></div>`).join('')}</div>`;
   if(!rows.length)h+=empty('Nothing to report yet','','');
   else h+='<div class="list">'+rows.map(r=>`<button class="item compact" data-act="open-student" data-id="${r.s.id}"><span class="grow"><b>${esc(r.s.name)}</b><small>${esc((batchById(r.s.batchId)||{}).name||'')} · attended ${r.att} of ${r.h}</small>${r.pct==null?'':`<div class="pct" style="max-width:220px"><i style="width:${r.pct}%"></i></div>`}</span><span class="actions" style="width:auto">${r.pct==null?'':`<b>${r.pct}%</b>`}${feeChip(r.st)}</span></button>`).join('')+'</div>';
-  return h+`<div class="card" style="margin-top:16px"><h2>Download for Excel</h2><div class="row"><button class="btn" data-act="csv-month">This month (CSV)</button><button class="btn ghost" data-act="csv-all">Full attendance register (CSV)</button></div></div>`;
+  return h+`<div class="card" style="margin-top:16px"><h2>Download for Excel</h2><div class="row"><button class="btn" data-act="csv-month">This month (CSV)</button><button class="btn ghost" data-act="csv-all">Full attendance register (CSV)</button><button class="btn ghost" data-act="csv-pay">All payments (CSV)</button></div></div>`;
 }
 
 /* ---------- Settings ---------- */
@@ -529,12 +581,16 @@ function viewSettings(){
     <label class="field"><span>Due on day</span><input id="set-due" type="number" min="1" max="28" inputmode="numeric" value="${state.dueDay}"></label></div>
     <p class="hint">Used for new students. A student who joins after the due day starts paying next month.</p>
     <button class="btn sm" data-act="apply-fee">Change all current students to ${rupee(state.defaultFee)}</button></div>
-  <div class="card"><h2>WhatsApp reminder</h2>
+  <div class="card"><h2>WhatsApp messages</h2>
+    <h3 style="margin-top:0">Fee reminder</h3>
     <textarea id="set-msg" rows="3">${esc(state.waTemplate)}</textarea>
-    <p class="hint" style="margin:8px 0 0">Preview:</p>
     <div class="preview" id="msg-preview">${esc(fillMsg(sample,thisMonth))}</div>
-    <p class="hint">Keep <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{due}</code> — they fill in automatically. <button class="link u" data-act="reset-msg">Reset</button></p></div>
-  <button class="item" data-act="tab" data-id="reports" style="margin-bottom:16px"><span class="grow"><b>Monthly report</b><small>Attendance % for every student, and Excel downloads</small></span><span class="chev">›</span></button>
+    <p class="hint">Keep <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{due}</code> — they fill in automatically. <button class="link u" data-act="reset-msg">Reset</button></p>
+    <h3>Payment receipt</h3>
+    <textarea id="set-receipt" rows="3">${esc(state.receiptTemplate)}</textarea>
+    <div class="preview" id="receipt-preview">${esc(fillReceipt(sample,{amount:sample.fee,month:thisMonth,date:today,mode:'UPI'}))}</div>
+    <p class="hint">Keep <code>{name}</code> <code>{amount}</code> <code>{month}</code> <code>{date}</code> — they fill in automatically. <button class="link u" data-act="reset-receipt">Reset</button></p></div>
+  <button class="item" data-act="tab" data-id="reports" style="margin-bottom:16px"><span class="grow"><b>Reports &amp; income</b><small>Money received, attendance %, Excel downloads</small></span><span class="chev">›</span></button>
   <div class="card"><h2>Backup</h2><p class="hint">Your data is safe in your account and on all your devices. A backup file is an extra copy, so download one now and then.</p>
     <div class="rowline"><button class="btn" data-act="backup">Download backup</button><span class="hint" style="margin:0">Last: ${lb?fmtDate(lb):'never'}</span></div></div>
   <div class="card"><h2>Account</h2><div class="rowline"><span class="grow" style="min-width:0;overflow-wrap:anywhere">${esc(user&&user.email||'')}${IS_PROD?'':` <span class="pill">${esc(ENV.name)}</span>`}</span><button class="btn sm" data-act="signout">Sign out</button></div>
@@ -551,6 +607,7 @@ function gate(){
   if(phase==='noconfig')return card('Not configured','This copy of the app has no Firebase settings (config.js).');
   if(phase==='signedout')return card('Welcome to Mudra','Sign in to see your classes, students and fees.','<button class="btn primary" data-act="signin">Sign in with Google</button>');
   if(phase==='denied')return card('No access',`<b>${esc(user&&user.email||'This account')}</b> isn't allowed to use this app. Sign in with the account that was given access.`,'<button class="btn primary" data-act="signout">Use a different account</button>');
+  if(phase==='loading'&&!navigator.onLine)return card("You're offline",'Connect to the internet once so your data can load on this device. After that, the app works offline too.');
   return card(phase==='loading'?'Loading your data…':'Starting…','');
 }
 function render(){
@@ -596,7 +653,11 @@ function studentForm(s){
     <div class="dlg-actions">${isNew?'':`<span class="left"><button type="button" class="btn sm" data-act="student-archive" data-id="${s.id}">${s.active?'Mark as left':'Re-join'}</button><button type="button" class="btn danger sm" data-act="student-delete" data-id="${s.id}">Delete</button></span>`}${cancelBtns(isNew?'Add':'Save')}</div>`,
   fd=>{const d={name:fd.get('name').trim(),phone:fd.get('phone').trim(),batchId:fd.get('batchId'),fee:Number(fd.get('fee')||0),joined:fd.get('joined'),notes:fd.get('notes').trim()};
     if(!d.name)return false;
-    if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}else Object.assign(studentById(s.id)||s,d);});
+    if(isNew){state.students.push({id:uid(),active:true,...d});toast(d.name+' added')}
+    else{const cur=studentById(s.id)||s;
+      // moving batch after attending classes: remember the old batch so past history stays correct
+      if(cur.batchId!==d.batchId&&Object.values(state.attendance).some(a=>a.includes(cur.id)))cur.prevBatches=[...(cur.prevBatches||[]),{batchId:cur.batchId,until:today}];
+      Object.assign(cur,d)}});
 }
 
 function payForm(sid,m){
@@ -605,8 +666,10 @@ function payForm(sid,m){
     <label class="field"><span>Amount (₹)</span><input name="amount" type="number" min="0" inputmode="numeric" required value="${s.fee}"></label>
     <label class="field"><span>Received on</span><input name="date" type="date" required value="${today}"></label>
     <label class="field"><span>Mode</span><select name="mode">${['UPI','Cash','Bank transfer','Other'].map(x=>`<option${x===ui.lastMode?' selected':''}>${x}</option>`).join('')}</select></label>
+    ${waNumber(s.phone)?`<label class="check"><input type="checkbox" name="receipt"${lsGet('mudra-receipt')==='0'?'':' checked'}> Send receipt on WhatsApp</label>`:''}
     <div class="dlg-actions">${cancelBtns('Save payment')}</div>`,
-  fd=>{ui.lastMode=fd.get('mode');state.payments.push({id:uid(),studentId:sid,month:m,amount:Number(fd.get('amount')),date:fd.get('date'),mode:fd.get('mode')});toast('Payment saved')});
+  fd=>{ui.lastMode=fd.get('mode');const p={id:uid(),studentId:sid,month:m,amount:Number(fd.get('amount')),date:fd.get('date'),mode:fd.get('mode')};state.payments.push(p);toast('Payment saved');
+    if(waNumber(s.phone)){lsSet('mudra-receipt',fd.get('receipt')?'1':'0');if(fd.get('receipt'))sendReceipt(s,p)}});
 }
 
 /* ---------- files ---------- */
@@ -620,7 +683,7 @@ function loadDemo(){
   const mk=(name,b,phone,joined)=>({id:uid(),name,phone,batchId:b.id,fee:1000,joined:joined||start,notes:'',active:true});
   const st=[mk('Ananya Rao',b1,'9876500001'),mk('Diya Menon',b1,'9876500002'),mk('Ishita Reddy',b1,''),mk('Kavya Nair',b1,'9876500004'),mk('Meera Pillai',b1,'9876500005'),
     mk('Sneha Varma',b2,'9876500006'),mk('Lakshmi Iyer',b2,'9876500007'),mk('Priya Krishnan',b2,''),mk('Tara Joshi',b2,'9876500009',thisMonth+'-'+pad(Math.min(20,parse(today).getDate())))];
-  state.batches=[b1,b2];state.students=st;state.attendance={};state.payments=[];
+  state.batches=[b1,b2];state.students=st;state.attendance={};state.off={};state.payments=[];
   let skipped=false;
   const days=[];for(let d=parse(addMonth(thisMonth,-2)+'-01');ymd(d)<=today;d.setDate(d.getDate()+1))days.push(new Date(d));
   days.reverse().forEach(d=>{const s=ymd(d);[b1,b2].forEach(b=>{if(!b.days.includes(d.getDay()))return;
@@ -654,7 +717,7 @@ const ACT={
     if(studentsIn(id,true).length){toast('Move or delete this batch’s students first');return}
     if(!confirm('Delete this batch?'))return;
     state.batches=state.batches.filter(b=>b.id!==id);
-    Object.keys(state.attendance).forEach(k=>{if(k.endsWith('|'+id))delete state.attendance[k]});
+    Object.keys(state.attendance).forEach(k=>{if(k.endsWith('|'+id))delete state.attendance[k]});Object.keys(state.off).forEach(k=>{if(k.endsWith('|'+id))delete state.off[k]});
     ui.batch=null;ui.hBatch=null;dlg.close();save();render();
   },
   'student-new':()=>studentForm(),
@@ -662,7 +725,7 @@ const ACT={
   'student-archive':id=>{const s=studentById(id);s.active=!s.active;if(s.active)delete s.left;else s.left=today;dlg.close();save();render();toast(s.name+(s.active?' is back in the class':' marked as left — history kept'))},
   'student-delete':id=>{
     const s=studentById(id);
-    if(!confirm(`Delete ${s.name} permanently?\n\nTheir attendance and payment history will be removed too. Use “Archive” instead if they have just left the class.`))return;
+    if(!confirm(`Delete ${s.name} permanently?\n\nTheir attendance and payment history will be removed too. Use “Mark as left” instead if they have just stopped coming.`))return;
     state.students=state.students.filter(x=>x.id!==id);
     for(const k in state.attendance)state.attendance[k]=state.attendance[k].filter(x=>x!==id);
     state.payments=state.payments.filter(p=>p.studentId!==id);
@@ -670,16 +733,28 @@ const ACT={
     dlg.close();save();render();
   },
   toggle:id=>{
-    const k=ui.date+'|'+ui.batch, a=state.attendance[k]||[], i=a.indexOf(id);
+    const k=ui.date+'|'+ui.batch, a=state.attendance[k]||[], i=a.indexOf(id);delete state.off[k];
     if(i>=0)a.splice(i,1);else a.push(id);
     state.attendance[k]=a;save();render();
   },
-  'all-present':()=>{state.attendance[ui.date+'|'+ui.batch]=rosterOn(ui.batch,ui.date).map(s=>s.id);save();render()},
-  'clear-day':()=>{if(!confirm('Clear attendance for this class? (Use this if the class did not happen.)'))return;delete state.attendance[ui.date+'|'+ui.batch];save();render()},
+  'all-present':()=>{delete state.off[ui.date+'|'+ui.batch];state.attendance[ui.date+'|'+ui.batch]=rosterOn(ui.batch,ui.date).map(s=>s.id);save();render()},
+  'clear-day':()=>{if(!confirm('Clear the attendance marked for this class?'))return;delete state.attendance[ui.date+'|'+ui.batch];save();render()},
+  'no-class':()=>{
+    const wd=parse(ui.date).getDay(), others=state.batches.filter(b=>b.id!==ui.batch&&b.days.includes(wd)&&!state.attendance[ui.date+'|'+b.id]);
+    openDlg(`<h2>No class</h2><p class="hint">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})} · ${esc(batchById(ui.batch).name)}</p>
+      <label class="field"><span>Reason</span><select name="reason">${['Holiday','Teacher unavailable','Cancelled','Other'].map(x=>`<option>${x}</option>`).join('')}</select></label>
+      ${others.length?`<label class="check"><input type="checkbox" name="all" checked> Also for ${others.map(b=>esc(b.name)).join(', ')} today</label>`:''}
+      <p class="hint">Nobody will be marked absent for this day.</p>
+      <div class="dlg-actions">${cancelBtns('Save')}</div>`,
+    fd=>{const r=fd.get('reason');state.off[ui.date+'|'+ui.batch]=r;delete state.attendance[ui.date+'|'+ui.batch];
+      if(fd.get('all'))others.forEach(b=>{state.off[ui.date+'|'+b.id]=r});toast('Marked as no class')});
+  },
+  'class-on':()=>{delete state.off[ui.date+'|'+ui.batch];save();render()},
   pay:(id,el)=>payForm(id,el.dataset.m||ui.month),
+  receipt:id=>{const p=state.payments.find(x=>x.id===id),s=p&&studentById(p.studentId);if(s)sendReceipt(s,p)},
   'pay-undo':id=>{if(!confirm('Remove this payment?'))return;state.payments=state.payments.filter(p=>p.id!==id);save();render()},
   remind:(id,el)=>{
-    const s=studentById(id);let n=(s.phone||'').replace(/\D/g,'');if(n.length===10)n='91'+n;
+    const s=studentById(id),n=waNumber(s.phone);if(!n){toast('No valid phone number for '+s.name);return}
     window.open('https://wa.me/'+n+'?text='+encodeURIComponent(fillMsg(s,el.dataset.m||ui.month)),'_blank');
   },
   'apply-fee':()=>{
@@ -689,6 +764,7 @@ const ACT={
     act.forEach(s=>s.fee=state.defaultFee);save();render();toast('Fee updated for '+act.length+' students');
   },
   'reset-msg':()=>{state.waTemplate=DEFAULT_MSG;save();render();toast('Message reset')},
+  'reset-receipt':()=>{state.receiptTemplate=DEFAULT_RECEIPT;save();render();toast('Receipt reset')},
   'csv-month':()=>{
     const m=ui.month,{rows}=monthData(m);
     download(`mudra-${m}.csv`,csv([['Student','Phone','Batch','Classes held','Attended','Attendance %','Monthly fee','Fee status','Paid amount','Paid on','Mode'],
@@ -700,6 +776,11 @@ const ACT={
       const roster=rosterOn(bid,d);state.attendance[k].forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
       roster.sort(byName).forEach(s=>out.push([d,b?b.name:'',s.name,p.has(s.id)?'Present':'Absent']))});
     download('mudra-attendance-register.csv',csv(out),'text/csv');
+  },
+  'csv-pay':()=>{
+    const out=[['Received on','Student','For month','Amount','Mode']];
+    [...state.payments].sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(p=>{const s=studentById(p.studentId);out.push([p.date,s?s.name:'(deleted)',p.month,p.amount,p.mode])});
+    download('mudra-payments.csv',csv(out),'text/csv');
   },
   backup:()=>{state.lastBackup=new Date().toISOString();save();download(`mudra-backup-${today}.json`,JSON.stringify(state,null,1),'application/json');render();toast('Backup downloaded — move it to OneDrive')},
   demo:()=>{if(IS_PROD)return;if(state.students.length&&!confirm('Replace current data with sample data?'))return;loadDemo()},
@@ -718,24 +799,37 @@ document.addEventListener('change',e=>{
   else if(t.id==='set-fee'){state.defaultFee=Math.max(0,Number(t.value)||0);save();render();toast('Default fee saved')}
   else if(t.id==='set-due'){state.dueDay=Math.min(28,Math.max(1,Math.round(Number(t.value)||15)));save();render();toast('Due day saved')}
   else if(t.id==='set-msg'){state.waTemplate=t.value.trim()||DEFAULT_MSG;save();toast('Message saved')}
+  else if(t.id==='set-receipt'){state.receiptTemplate=t.value.trim()||DEFAULT_RECEIPT;save();toast('Receipt message saved')}
   else if(t.id==='import-file'&&t.files[0]){
     const r=new FileReader();
     r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.students)||!Array.isArray(d.batches))throw 0;
-      if(!confirm(`Restore backup with ${d.students.length} students? This replaces the data on this device.`))return;
+      if(!confirm(`Restore backup with ${d.students.length} students? This replaces ALL current data on every device.`))return;
       state=Object.assign(fresh(),d);ui.batch=null;ui.hStudent=null;save();render();toast('Backup restored')}catch(_){toast('That file is not a valid backup')}};
     r.readAsText(t.files[0]);t.value='';
   }
 });
 document.addEventListener('input',e=>{
   const t=e.target;
-  if(t.id==='s-search'){ui.search=t.value;render();const el=document.getElementById('s-search');el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+  if(t.id==='s-search'){ui.search=t.value;const el=document.getElementById('s-list');if(el)el.innerHTML=studentListHtml()}
   else if(t.id==='set-msg'){const s=state.students.find(x=>x.active)||{name:'Ananya',fee:state.defaultFee};const keep=state.waTemplate;state.waTemplate=t.value||DEFAULT_MSG;document.getElementById('msg-preview').textContent=fillMsg(s,thisMonth);state.waTemplate=keep}
+  else if(t.id==='set-receipt'){const s=state.students.find(x=>x.active)||{name:'Ananya',fee:state.defaultFee};const keep=state.receiptTemplate;state.receiptTemplate=t.value||DEFAULT_RECEIPT;document.getElementById('receipt-preview').textContent=fillReceipt(s,{amount:s.fee,month:thisMonth,date:today,mode:'UPI'});state.receiptTemplate=keep}
   else if(t.name==='joined'&&t.form&&t.form.closest('dialog')){const el=document.getElementById('first-due');if(el)el.textContent=firstDueText(t.value)}
 });
 
 /* ---------- start ---------- */
-window.addEventListener('online',()=>{if(tab==='settings')softRender()});
-window.addEventListener('offline',()=>{if(tab==='settings')softRender()});
+function refreshDay(){
+  const t=ymd(new Date());if(t===today)return;
+  const wasToday=ui.date===today, wasMonth=ui.month===thisMonth;
+  today=t;thisMonth=t.slice(0,7);
+  if(wasToday){ui.date=today;ui.batch=defaultBatch(today)}
+  if(wasMonth)ui.month=thisMonth;
+  if(phase==='ready')softRender();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshDay()});
+window.addEventListener('focus',refreshDay);
+setInterval(refreshDay,60000);
+window.addEventListener('online',()=>{if(retryT)scheduleResync(true);if(phase!=='ready')render();else if(tab==='settings')softRender()});
+window.addEventListener('offline',()=>{if(phase!=='ready')render();else if(tab==='settings')softRender()});
 (async()=>{
   if(ENV&&!IS_PROD){document.getElementById('envtag').innerHTML=`<span class="envtag">${esc(ENV.name.toUpperCase())}</span>`;document.title='Mudra ('+ENV.name+')'}
   if(!ENV||!ENV.firebase||!ENV.firebase.apiKey||ENV.firebase.apiKey.startsWith('REPLACE')){phase='noconfig';render();return}

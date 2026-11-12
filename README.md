@@ -106,11 +106,11 @@ Protection comes from the auth + rules.
 ### Data in Firestore
 ```
 access/allowlist                          { emails: ["someone@gmail.com", ...] }   ← console only
-studios/mudra                             { defaultFee, dueDay, waTemplate, lastBackup }
+studios/mudra                             { defaultFee, dueDay, waTemplate, receiptTemplate, lastBackup }
 studios/mudra/batches/{id}                { name, days:[0-6], time }               0 = Sunday
-studios/mudra/students/{id}               { name, phone, batchId, fee, joined, notes, active, left? }
+studios/mudra/students/{id}               { name, phone, batchId, fee, joined, notes, active, left?, prevBatches?:[{batchId,until}] }
 studios/mudra/payments/{id}               { studentId, month:'YYYY-MM', amount, date, mode }
-studios/mudra/attendance/{date|batchId}   { date, batchId, present:[studentId,...] }
+studios/mudra/attendance/{date|batchId}   { date, batchId, present:[studentId,...] }  or  { off:true, reason }  (no-class day)
 ```
 - Attendance stores only the **present** IDs. A missing class doc means "not marked".
 - Payments store the **amount actually paid**, so later fee changes don't rewrite history.
@@ -244,6 +244,27 @@ git checkout main && git merge dev && git push   # → deploys to PROD
 
 ---
 
+## 7b. Recent additions (v3.1)
+
+- **WhatsApp receipt** after *Mark paid* (checkbox, remembered per device), plus a *receipt* link to resend. Template editable in Settings (`{name} {amount} {month} {date}`).
+- **Money received**: Settings → *Reports & income* shows money received in the month (by payment date, split by mode), the Indian financial-year total (Apr–Mar), a 12-month bar chart, and *All payments (CSV)*. The Fees tab links to it.
+- **No class days**: on Today, *No class* → reason (Holiday / Teacher unavailable / …), optionally for every batch that day. Stored as `off:true` in the attendance collection; not counted as missed, shown in History and the student calendar.
+- **Batch moves keep history**: moving a student who has attended classes records `prevBatches`, and `batchOn(student, date)` is used for rosters, calendars and %.
+- **Resilience**: "today" refreshes when the app is reopened (PWAs stay open for days); an empty offline cache shows "You're offline" instead of an empty account; listeners auto-resubscribe with backoff after errors; sign-out is blocked while offline or with unsynced changes; phone numbers starting with 0 work for WhatsApp.
+
+### Tests (CI)
+`tests/e2e.py` runs the real app in Chromium against a fake Firebase (`tests/fake/`): sign-in gate, allowlist denial, sync, diff writes, search, settings, erase, migration, no-class, receipt, income, batch move, date rollover, offline cache, retry after errors, and offline start via the service worker. The **test** job in `deploy.yml` must pass before **deploy** runs; PRs to `main` run tests only.
+
+```bash
+pip install playwright==1.63.0 && python -m playwright install chromium
+python tests/e2e.py
+```
+
+### Security headers (`firebase.json`)
+All files: `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security`.
+The app page (`/`, `/index.html`) also gets a **Content-Security-Policy** (scripts only from self, gstatic and apis.google.com; connections only to Google APIs; `frame-ancestors 'self'`) and `X-Frame-Options: SAMEORIGIN`. The CSP is deliberately **not** applied to Firebase's `/__/auth/*` pages.
+If sign-in ever breaks after a Firebase SDK upgrade, check the browser console for CSP violations first.
+
 ## 8. Fixes & lessons learned
 
 | Issue | Cause | Fix |
@@ -259,6 +280,11 @@ git checkout main && git merge dev && git push   # → deploys to PROD
 | Write loops / extra writes risk | Firestore returns fields in a different order | diff uses key-sorted JSON |
 | Edit lost if a sync arrives mid-form | snapshot replaces objects | forms re-look-up by `id` on submit |
 | Too busy for a non-technical user | backup nag on every page, 6 tabs, big Undo buttons, risky actions in plain view | 5 tabs (Reports moved into Settings), no nag, grouped Fees, light undo link, Advanced section |
+| "Today" stuck on the day the app was opened | PWA stays in memory for days | refresh date on visibility/focus + every minute |
+| New device offline looked like an empty account | empty cache treated as loaded | wait for server unless cache has data; "You're offline" screen |
+| Sync silently stopped after a network/quota error | Firestore listeners end after an error | auto-resubscribe with backoff |
+| Letters dropped/doubled in search on Android | input re-rendered every keystroke | update only the list |
+| Moving batch rewrote past attendance | roster used current batch | `prevBatches` + `batchOn()` |
 | Claude couldn't create the repo / enable Pages | session API limits | done manually. Claude GitHub App installed for pushes |
 
 ---
