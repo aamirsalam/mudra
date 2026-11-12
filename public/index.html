@@ -74,8 +74,8 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04
 .num{text-align:right}
 .bars{display:flex;align-items:flex-end;gap:4px;height:130px;margin-top:6px}
 .barc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-.bar{width:100%;max-width:28px;background:var(--gold);border-radius:4px 4px 0 0;min-height:2px;opacity:.7}
-.barc.cur .bar{background:var(--accent);opacity:1}
+.ibar{width:100%;max-width:28px;background:var(--gold);border-radius:4px 4px 0 0;min-height:2px;opacity:.7}
+.barc.cur .ibar{background:var(--accent);opacity:1}
 .barc small{font-size:10px;color:var(--muted);margin-top:3px}.bv{font-size:9px;color:var(--muted);margin-bottom:2px}
 .pct{height:6px;background:var(--tile);border-radius:3px;margin-top:4px;overflow:hidden;min-width:60px}.pct i{display:block;height:100%;background:var(--gold)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
@@ -562,7 +562,7 @@ function viewReports(){
     <div class="card"><h2>Money received</h2>
       <div class="stats" style="margin-bottom:6px"><div class="stat ok"><small>${monthLabel(m)}</small><b>${rupee(inc.total)}</b><small>${inc.n} payment${inc.n===1?'':'s'}${Object.keys(inc.by).length?' · '+Object.entries(inc.by).map(([k,v])=>`${esc(k)} ${rupee(v)}`).join(' · '):''}</small></div>
       <div class="stat"><small>Financial year ${fs.slice(0,4)}–${String(+fs.slice(0,4)+1).slice(2)}</small><b>${rupee(fyTotal)}</b><small>Apr – Mar</small></div></div>
-      <div class="bars">${last12.map(([x,v])=>`<div class="barc${x===m?' cur':''}" title="${monthLabel(x)}: ${rupee(v)}"><span class="bv">${v?Math.round(v/1000)+'k':''}</span><div class="bar" style="height:${Math.round(v/mx*100)}%"></div><small>${shortMonth(x).slice(0,3)}</small></div>`).join('')}</div>
+      <div class="bars">${last12.map(([x,v])=>`<div class="barc${x===m?' cur':''}" title="${monthLabel(x)}: ${rupee(v)}"><span class="bv">${v?Math.round(v/1000)+'k':''}</span><div class="ibar" style="height:${Math.round(v/mx*100)}%"></div><small>${shortMonth(x).slice(0,3)}</small></div>`).join('')}</div>
       <p class="hint" style="margin:8px 0 0">Counted by the date money was received.</p></div>`;
   if(state.batches.length)h+=`<div class="stats">${state.batches.map(b=>`<div class="stat"><small>${esc(b.name)}</small><b>${held[b.id]||0}</b><small>classes held</small></div>`).join('')}</div>`;
   if(!rows.length)h+=empty('Nothing to report yet','','');

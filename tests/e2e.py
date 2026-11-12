@@ -64,6 +64,9 @@ async def core(b):
     check('sample data written to cloud', sum('/students/' in k for k in d) == 9 and 'studios/mudra' in d)
     ops0 = await pg.evaluate('window.__ops')
     await pg.locator('.tile').first.click(); await pg.wait_for_timeout(200)
+    # layout guard: the filter bar must span the page (a CSS clash once squashed it)
+    w = await pg.evaluate("document.querySelector('main .bar').getBoundingClientRect().width")
+    check('layout: top bar spans the page', w > 600, f'width={w}')
     check('one toggle = exactly 1 write', await pg.evaluate('window.__ops') - ops0 == 1)
     await pg.click('nav >> text=Fees'); await pg.wait_for_timeout(200)
     check('no write loop after snapshots', await pg.evaluate('window.__ops') - ops0 == 1)
@@ -149,6 +152,8 @@ async def features(b):
     await pg.click('text=Money received in'); await pg.wait_for_timeout(150)
     check('income card shown', await pg.locator('text=Money received').count() >= 1 and await pg.locator('text=Financial year').count() == 1)
     check('income: 12 month bars', await pg.locator('.barc').count() == 12)
+    w = await pg.evaluate("document.querySelector('main .bar').getBoundingClientRect().width")
+    check('layout: reports month bar not squashed', w > 300, f'width={w}')
     async with pg.expect_download() as dl: await pg.click('[data-act=csv-pay]')
     check('payments CSV downloads', (await dl.value).suggested_filename == 'mudra-payments.csv')
     # --- batch move keeps history
