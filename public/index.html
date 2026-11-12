@@ -666,10 +666,10 @@ function payForm(sid,m){
     <label class="field"><span>Amount (₹)</span><input name="amount" type="number" min="0" inputmode="numeric" required value="${s.fee}"></label>
     <label class="field"><span>Received on</span><input name="date" type="date" required value="${today}"></label>
     <label class="field"><span>Mode</span><select name="mode">${['UPI','Cash','Bank transfer','Other'].map(x=>`<option${x===ui.lastMode?' selected':''}>${x}</option>`).join('')}</select></label>
-    ${waNumber(s.phone)?`<label class="check"><input type="checkbox" name="receipt"${lsGet('mudra-receipt')==='0'?'':' checked'}> Send receipt on WhatsApp</label>`:''}
+    ${waNumber(s.phone)?`<label class="check"><input type="checkbox" name="receipt"> Send receipt on WhatsApp</label>`:''}
     <div class="dlg-actions">${cancelBtns('Save payment')}</div>`,
   fd=>{ui.lastMode=fd.get('mode');const p={id:uid(),studentId:sid,month:m,amount:Number(fd.get('amount')),date:fd.get('date'),mode:fd.get('mode')};state.payments.push(p);toast('Payment saved');
-    if(waNumber(s.phone)){lsSet('mudra-receipt',fd.get('receipt')?'1':'0');if(fd.get('receipt'))sendReceipt(s,p)}});
+    if(fd.get('receipt'))sendReceipt(s,p)});
 }
 
 /* ---------- files ---------- */
