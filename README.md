@@ -249,6 +249,8 @@ git checkout main && git merge dev && git push   # → deploys to PROD
 - **WhatsApp receipt** after *Mark paid* (checkbox, remembered per device), plus a *receipt* link to resend. Template editable in Settings (`{name} {amount} {month} {date}`).
 - **Money received**: Settings → *Reports & income* shows money received in the month (by payment date, split by mode), the Indian financial-year total (Apr–Mar), a 12-month bar chart, and *All payments (CSV)*. The Fees tab links to it.
 - **No class days**: on Today, *No class* → reason (Holiday / Teacher unavailable / …), optionally for every batch that day. Stored as `off:true` in the attendance collection; not counted as missed, shown in History and the student calendar.
+- **Make-up classes**: on Today, each tile has **⋯ → Attended another day**. The student counts as present for her own missed class, with the actual date (and an optional note) stored as `makeup: {studentId: {on, note}}` on that class. Shown as "Make-up · date" on the tile, in History, as **M** on her calendar, and in the register CSV.
+- **No phantom classes**: marking attendance on a day the batch doesn't meet asks first; untapping the last student on such a day removes the class. "Clear" is now **Remove class**.
 - **Batch moves keep history**: moving a student who has attended classes records `prevBatches`, and `batchOn(student, date)` is used for rosters, calendars and %.
 - **Resilience**: "today" refreshes when the app is reopened (PWAs stay open for days); an empty offline cache shows "You're offline" instead of an empty account; listeners auto-resubscribe with backoff after errors; sign-out is blocked while offline or with unsynced changes; phone numbers starting with 0 work for WhatsApp.
 
