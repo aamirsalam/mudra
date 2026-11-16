@@ -40,7 +40,10 @@ input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:va
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);font:inherit;cursor:pointer;min-height:130px;transition:background .12s,border-color .12s}
+.tile{position:relative;user-select:none;-webkit-user-select:none}
 .tile .av{width:52px;height:52px;font-size:18px}
+.tmenu{position:absolute;top:4px;right:4px;width:36px;height:32px;border:0;border-radius:10px;background:none;color:var(--muted);font:inherit;font-size:20px;line-height:1;cursor:pointer;letter-spacing:1px}
+.tmenu:hover,.tmenu:focus-visible{background:var(--tile)}
 .tile .nm{font-weight:600;text-align:center;line-height:1.2}
 .tile .st{font-size:12px;color:var(--muted)}
 .tile.on{background:var(--ok-bg);border-color:var(--ok)}
@@ -211,7 +214,7 @@ const dayMonth=s=>parse(s).toLocaleDateString('en-IN',{day:'numeric',month:'shor
 const addMonth=(m,n)=>{const d=parse(m+'-01');d.setMonth(d.getMonth()+n);return ymd(d).slice(0,7)};
 const initials=n=>n.trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
 const byName=(a,b)=>a.name.localeCompare(b.name);
-const fresh=()=>({version:3,batches:[],students:[],attendance:{},off:{},payments:[],lastBackup:null,defaultFee:1000,dueDay:15,waTemplate:DEFAULT_MSG,receiptTemplate:DEFAULT_RECEIPT});
+const fresh=()=>({version:3,batches:[],students:[],attendance:{},off:{},makeup:{},payments:[],lastBackup:null,defaultFee:1000,dueDay:15,waTemplate:DEFAULT_MSG,receiptTemplate:DEFAULT_RECEIPT});
 
 let state=fresh(), tab='today';
 let today=ymd(new Date()), thisMonth=today.slice(0,7);
@@ -240,7 +243,7 @@ function toDocs(){
 }
 // attendance collection holds both marked classes and "no class" days (off:true)
 function attDocs(){
-  const m=new Map(Object.entries(state.attendance).map(([k,v])=>{const [date,batchId]=k.split('|');return [k,{date,batchId,present:v}]}));
+  const m=new Map(Object.entries(state.attendance).map(([k,v])=>{const [date,batchId]=k.split('|'),mk=state.makeup[k];return [k,{date,batchId,present:v,...(mk&&Object.keys(mk).length?{makeup:mk}:{})}]}));
   Object.entries(state.off||{}).forEach(([k,r])=>{const [date,batchId]=k.split('|');m.set(k,{date,batchId,present:[],off:true,reason:r})});
   return m;
 }
@@ -300,6 +303,7 @@ function subscribe(keep){
     onData(c,snap,stable(rows),()=>{
       synced[c]=new Map(rows.map(([id,d])=>[id,stable(d)]));
       if(c==='attendance'){state.attendance=Object.fromEntries(rows.filter(([,d])=>!d.off).map(([id,d])=>[id,d.present||[]]));
+        state.makeup=Object.fromEntries(rows.filter(([,d])=>!d.off&&d.makeup).map(([id,d])=>[id,d.makeup]));
         state.off=Object.fromEntries(rows.filter(([,d])=>d.off).map(([id,d])=>[id,d.reason||'No class']))}
       else state[c]=rows.map(([id,d])=>({id,...d}));
     });
@@ -393,6 +397,7 @@ function backupBanner(){
 const monthInput=id=>`<label class="field month"><span>Month</span><input type="month" id="${id}" value="${ui.month}" max="${addMonth(thisMonth,1)}"></label>`;
 // which batch a student was in on date d (prevBatches records moves: [{batchId, until}])
 const batchOn=(s,d)=>{for(const p of (s.prevBatches||[]))if(d<p.until)return p.batchId;return s.batchId};
+const mkOf=(k,sid)=>(state.makeup[k]||{})[sid];
 const rosterOn=(bid,d)=>state.students.filter(s=>batchOn(s,d)===bid&&(!s.joined||s.joined<=d)&&(s.active||(s.left&&d<s.left)));
 
 /* ---------- Today ---------- */
@@ -413,8 +418,9 @@ function viewToday(){
   if(!list.length)return h+empty('No students in this batch yet','','<button class="btn primary" data-act="student-new">Add a student</button>');
   const n=list.filter(s=>present.has(s.id)).length;
   h+=`<div class="countrow"><div class="count"><b>${n}</b> / ${list.length} present ${rec?'':'<span class="pill">not marked yet</span>'}</div>
-    <div class="row"><button class="btn" data-act="all-present">Mark all present</button>${rec?'<button class="btn ghost" data-act="clear-day">Clear</button>':'<button class="btn ghost" data-act="no-class">No class</button>'}</div></div>
-    <div class="tiles">${list.map(s=>{const on=present.has(s.id);return `<button class="tile${on?' on':''}" data-act="toggle" data-id="${s.id}" aria-pressed="${on}"><span class="av">${esc(initials(s.name))}</span><span class="nm">${esc(s.name)}</span><span class="st">${on?'✓ Present':'Tap to mark'}</span></button>`}).join('')}</div>`;
+    <div class="row"><button class="btn" data-act="all-present">Mark all present</button>${rec?'<button class="btn ghost" data-act="clear-day">Remove class</button>':'<button class="btn ghost" data-act="no-class">No class</button>'}</div></div>
+    <div class="tiles">${list.map(s=>{const on=present.has(s.id),mk=mkOf(key,s.id);
+      return `<div class="tile${on?' on':''}" role="button" tabindex="0" data-act="toggle" data-id="${s.id}" aria-pressed="${on}"><button class="tmenu" data-act="tile-menu" data-id="${s.id}" aria-label="More options for ${esc(s.name)}">⋯</button><span class="av">${esc(initials(s.name))}</span><span class="nm">${esc(s.name)}</span><span class="st">${mk?`✓ Make-up · ${dayMonth(mk.on)}`:on?'✓ Present':'Tap to mark'}</span></div>`}).join('')}</div>`;
   return h;
 }
 
@@ -442,7 +448,8 @@ function histClasses(seg){
     rec.forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
     const absent=roster.filter(s=>!p.has(s.id)).sort(byName);
     held++;if(roster.length)sum+=(roster.length-absent.length)/roster.length;
-    return `<button class="item" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>${absent.length?'Absent: '+absent.map(s=>esc(s.name)).join(', '):'Everyone present'}</small></span><span class="chip ${absent.length?'none':'ok'}">${roster.length-absent.length} / ${roster.length} present</span><span class="chev">›</span></button>`;
+    const mks=Object.entries(state.makeup[d+'|'+bid]||{}).map(([sid,v])=>{const x=studentById(sid);return x?`${esc(x.name)} (came ${dayMonth(v.on)})`:''}).filter(Boolean);
+    return `<button class="item" data-act="open-class" data-id="${d}"><span class="grow"><b>${label}</b><small>${absent.length?'Absent: '+absent.map(s=>esc(s.name)).join(', '):'Everyone present'}</small>${mks.length?`<small>Make-up: ${mks.join(', ')}</small>`:''}</span><span class="chip ${absent.length?'none':'ok'}">${roster.length-absent.length} / ${roster.length} present</span><span class="chev">›</span></button>`;
   });
   let h=`<div class="bar">${seg}<label class="field grow"><span>Batch</span><select id="h-batch">${state.batches.map(b=>`<option value="${b.id}"${b.id===bid?' selected':''}>${esc(b.name)}</option>`).join('')}</select></label>${monthInput('h-month')}</div>
     <div class="stats"><div class="stat"><small>Classes held</small><b>${held}</b></div><div class="stat ok"><small>Average attendance</small><b>${held?Math.round(sum/held*100)+'%':'—'}</b></div>${unmarked?`<div class="stat up"><small>Not marked</small><b>${unmarked}</b></div>`:''}</div>`;
@@ -467,7 +474,8 @@ function histStudent(seg){
     const d=m+'-'+pad(i), wd=parse(d).getDay();
     const went=Object.keys(state.attendance).some(k=>k.startsWith(d+'|')&&state.attendance[k].includes(s.id));
     let c='off',mk='';
-    if(went){c='att';mk='✓';att++}
+    const mkd=Object.keys(state.makeup).some(k=>k.startsWith(d+'|')&&state.makeup[k][s.id]);
+    if(went){c='att';mk=mkd?'M':'✓';att++}
     else if(ended(d)){}
     else{const bk=d+'|'+batchOn(s,d), bb=batchById(batchOn(s,d));
       if(state.off[bk]){c='hol';mk='–';hol++}
@@ -497,7 +505,7 @@ function histStudent(seg){
 </div>
     <div class="card"><h2>Attendance — ${monthLabel(m)}</h2>
       <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="h">${x}</div>`).join('')}${cells.join('')}</div>
-      <div class="legend"><span class="la">Attended (${att})</span><span class="lm">Missed (${miss})</span>${hol?`<span class="lh">No class (${hol})</span>`:''}${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
+      <div class="legend"><span class="la">Attended (${att})${cells.some(c=>c.includes('<i>M</i>'))?' · M = make-up':''}</span><span class="lm">Missed (${miss})</span>${hol?`<span class="lh">No class (${hol})</span>`:''}${nm?`<span class="ln">Class day, not marked (${nm})</span>`:''}</div></div>
     <div class="card"><h2>Fees</h2>${fNote}${fees.length?'<div class="list">'+fees.join('')+'</div>':(Number(s.fee)>0&&curSt.k!=='notyet'?'<p class="hint">All fees paid up to date.</p>':'')}
       ${pays.length?`<h3>Recent payments</h3><div class="list">${pays.map(p=>`<div class="item compact"><span class="grow"><b>${monthLabel(p.month)}</b><small class="okt">${rupee(p.amount)} received ${fmtDate(p.date)} · ${esc(p.mode)}</small></span>${waNumber(s.phone)?`<button class="btn sm ghost" data-act="receipt" data-id="${p.id}">Receipt</button>`:''}<span class="chip ok">Paid</span></div>`).join('')}</div>`:''}</div>`;
 }
@@ -740,7 +748,7 @@ function loadDemo(){
   const mk=(name,b,phone,joined)=>({id:uid(),name,phone,batchId:b.id,fee:1000,joined:joined||start,notes:'',active:true});
   const st=[mk('Ananya Rao',b1,'9876500001'),mk('Diya Menon',b1,'9876500002'),mk('Ishita Reddy',b1,''),mk('Kavya Nair',b1,'9876500004'),mk('Meera Pillai',b1,'9876500005'),
     mk('Sneha Varma',b2,'9876500006'),mk('Lakshmi Iyer',b2,'9876500007'),mk('Priya Krishnan',b2,''),mk('Tara Joshi',b2,'9876500009',thisMonth+'-'+pad(Math.min(20,parse(today).getDate())))];
-  state.batches=[b1,b2];state.students=st;state.attendance={};state.off={};state.payments=[];
+  state.batches=[b1,b2];state.students=st;state.attendance={};state.off={};state.makeup={};state.payments=[];
   let skipped=false;
   const days=[];for(let d=parse(addMonth(thisMonth,-2)+'-01');ymd(d)<=today;d.setDate(d.getDate()+1))days.push(new Date(d));
   days.reverse().forEach(d=>{const s=ymd(d);[b1,b2].forEach(b=>{if(!b.days.includes(d.getDay()))return;
@@ -754,6 +762,10 @@ function loadDemo(){
 }
 
 /* ---------- actions ---------- */
+function guardExtraClass(b){
+  const days=WEEK.filter(d=>b.days.includes(d)).map(d=>DAYS[d]).join(', ')||'any fixed day';
+  return confirm(`${b.name} doesn't usually meet on ${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long'})}s (usual: ${days}).\n\nIf just one student came on a different day, mark her on her usual class day instead and use ⋯ → "Attended another day".\n\nIs this an extra class for the whole batch?`);
+}
 const ACT={
   tab:id=>{tab=id;render();window.scrollTo(0,0)},
   signin:()=>signIn(),
@@ -774,7 +786,7 @@ const ACT={
     if(studentsIn(id,true).length){toast('Move or delete this batch’s students first');return}
     if(!confirm('Delete this batch?'))return;
     state.batches=state.batches.filter(b=>b.id!==id);
-    Object.keys(state.attendance).forEach(k=>{if(k.endsWith('|'+id))delete state.attendance[k]});Object.keys(state.off).forEach(k=>{if(k.endsWith('|'+id))delete state.off[k]});
+    Object.keys(state.attendance).forEach(k=>{if(k.endsWith('|'+id))delete state.attendance[k]});Object.keys(state.off).forEach(k=>{if(k.endsWith('|'+id))delete state.off[k]});Object.keys(state.makeup).forEach(k=>{if(k.endsWith('|'+id))delete state.makeup[k]});
     ui.batch=null;ui.hBatch=null;dlg.close();save();render();
   },
   'student-new':()=>studentForm(),
@@ -785,17 +797,36 @@ const ACT={
     if(!confirm(`Delete ${s.name} permanently?\n\nTheir attendance and payment history will be removed too. Use “Mark as left” instead if they have just stopped coming.`))return;
     state.students=state.students.filter(x=>x.id!==id);
     for(const k in state.attendance)state.attendance[k]=state.attendance[k].filter(x=>x!==id);
+    for(const k in state.makeup)delete state.makeup[k][id];
     state.payments=state.payments.filter(p=>p.studentId!==id);
     if(ui.hStudent===id){ui.hStudent=null;if(tab==='history')tab='students'}
     dlg.close();save();render();
   },
   toggle:id=>{
-    const k=ui.date+'|'+ui.batch, a=state.attendance[k]||[], i=a.indexOf(id);delete state.off[k];
-    if(i>=0)a.splice(i,1);else a.push(id);
-    state.attendance[k]=a;save();render();
+    const k=ui.date+'|'+ui.batch, b=batchById(ui.batch), scheduled=b.days.includes(parse(ui.date).getDay());
+    if(!state.attendance[k]&&!scheduled&&!guardExtraClass(b))return;
+    const a=state.attendance[k]||[], i=a.indexOf(id);delete state.off[k];
+    if(i>=0){a.splice(i,1);if(state.makeup[k])delete state.makeup[k][id]}else a.push(id);
+    state.attendance[k]=a;
+    // untapping the last student on a day the batch doesn't meet: the class was a mistake, remove it
+    if(!a.length&&!scheduled){delete state.attendance[k];delete state.makeup[k]}
+    save();render();
   },
-  'all-present':()=>{delete state.off[ui.date+'|'+ui.batch];state.attendance[ui.date+'|'+ui.batch]=rosterOn(ui.batch,ui.date).map(s=>s.id);save();render()},
-  'clear-day':()=>{if(!confirm('Clear the attendance marked for this class?'))return;delete state.attendance[ui.date+'|'+ui.batch];save();render()},
+  'tile-menu':id=>{
+    const s=studentById(id), k=ui.date+'|'+ui.batch, mk=mkOf(k,id), yest=ymd(new Date(parse(ui.date).getTime()-864e5));
+    openDlg(`<h2 tabindex="-1" autofocus style="outline:none">${esc(s.name)}</h2><p class="hint">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})} · ${esc(batchById(ui.batch).name)}</p>
+      <h3 style="margin:4px 0 0">Attended another day (make-up)</h3>
+      <p class="hint" style="margin:0">Missed this class but came on a different day? She'll count as present here. Nobody else is affected.</p>
+      <label class="field"><span>Day she actually came</span><input type="date" name="on" required value="${mk?mk.on:yest}" max="${today}"></label>
+      <label class="field"><span>Note (optional)</span><input name="note" value="${esc(mk?mk.note:'')}" placeholder="e.g. came with the Friday batch"></label>
+      <div class="dlg-actions">${mk?'<span class="left"><button type="button" class="btn danger sm" data-act="makeup-remove" data-id="'+id+'">Remove make-up</button></span>':''}${cancelBtns(mk?'Save':'Mark make-up')}</div>`,
+    fd=>{const on=fd.get('on');if(!on)return false;
+      const a=state.attendance[k]||[];if(!a.includes(id))a.push(id);state.attendance[k]=a;delete state.off[k];
+      state.makeup[k]={...(state.makeup[k]||{}),[id]:{on,note:(fd.get('note')||'').trim()}};toast('Marked as make-up')});
+  },
+  'makeup-remove':id=>{const k=ui.date+'|'+ui.batch;if(state.makeup[k])delete state.makeup[k][id];dlg.close();save();render();toast('Make-up removed — still marked present')},
+  'all-present':()=>{const b=batchById(ui.batch);if(!state.attendance[ui.date+'|'+ui.batch]&&!b.days.includes(parse(ui.date).getDay())&&!guardExtraClass(b))return;delete state.off[ui.date+'|'+ui.batch];state.attendance[ui.date+'|'+ui.batch]=rosterOn(ui.batch,ui.date).map(s=>s.id);save();render()},
+  'clear-day':()=>{if(!confirm('Remove this class?\n\nEveryone goes back to "not marked" for this day. Use this if the class was logged by mistake.'))return;delete state.attendance[ui.date+'|'+ui.batch];delete state.makeup[ui.date+'|'+ui.batch];save();render();toast('Class removed')},
   'no-class':()=>{
     const wd=parse(ui.date).getDay(), others=state.batches.filter(b=>b.id!==ui.batch&&b.days.includes(wd)&&!state.attendance[ui.date+'|'+b.id]);
     openDlg(`<h2>No class</h2><p class="hint">${parse(ui.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})} · ${esc(batchById(ui.batch).name)}</p>
@@ -831,7 +862,7 @@ const ACT={
     const out=[['Date','Batch','Student','Status']];
     Object.keys(state.attendance).sort().forEach(k=>{const [d,bid]=k.split('|'),b=batchById(bid),p=new Set(state.attendance[k]);
       const roster=rosterOn(bid,d);state.attendance[k].forEach(id=>{if(!roster.some(s=>s.id===id)){const s=studentById(id);if(s)roster.push(s)}});
-      roster.sort(byName).forEach(s=>out.push([d,b?b.name:'',s.name,p.has(s.id)?'Present':'Absent']))});
+      roster.sort(byName).forEach(s=>{const mk=mkOf(k,s.id);out.push([d,b?b.name:'',s.name,mk?`Present (make-up, came ${mk.on}${mk.note?' — '+mk.note:''})`:p.has(s.id)?'Present':'Absent'])})});
     download('mudra-attendance-register.csv',csv(out),'text/csv');
   },
   'csv-pay':()=>{
@@ -844,6 +875,7 @@ const ACT={
   wipe:()=>{if(!confirm('Erase ALL students, attendance and payments from your account (on every device)?'))return;if(prompt('Type ERASE to confirm')!=='ERASE')return;state=fresh();ui.batch=null;save();render();toast('All data erased')},
 };
 
+document.addEventListener('keydown',e=>{const t=e.target;if((e.key==='Enter'||e.key===' ')&&t.matches&&t.matches('[role=button][data-act]')){e.preventDefault();t.click()}});
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t)return;if(t.tagName==='A')e.preventDefault();const f=ACT[t.dataset.act];if(f)f(t.dataset.id,t)});
 document.addEventListener('change',e=>{
   const t=e.target;

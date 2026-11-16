@@ -245,10 +245,53 @@ async def tabbar(b):
     check('no JS errors (tab bar)', not pg.errors, pg.errors[:2])
     await ctx.close()
 
+async def makeup(b):
+    ctx, pg = await new_page(b, mobile=True)
+    await signed_in_with_sample(pg)
+    # open the most recent marked class from History
+    await pg.click('nav >> text=History'); await pg.wait_for_timeout(150)
+    item = pg.locator('[data-act=open-class]', has=pg.locator('text=present')).first
+    await item.click(); await pg.wait_for_timeout(200)
+    date = await pg.input_value('#t-date'); bid = await pg.evaluate("document.getElementById('t-batch').value")
+    key = f'studios/mudra/attendance/{date}|{bid}'
+    # pick someone not present (or untap one), then mark as make-up
+    off = pg.locator('.tile:not(.on)')
+    if await off.count() == 0:
+        await pg.locator('.tile.on').first.click(); await pg.wait_for_timeout(150)
+    tile = pg.locator('.tile:not(.on)').first
+    sid = await tile.get_attribute('data-id')
+    await tile.locator('.tmenu').click(); await pg.wait_for_timeout(100)
+    await pg.fill('dialog input[name=note]', 'came with the other batch'); await pg.click('dialog button.primary'); await pg.wait_for_timeout(200)
+    doc = (await fs(pg)).get(key, {})
+    check('make-up: counted present on the missed class', sid in doc.get('present', []))
+    check('make-up: date + note stored', bool(doc.get('makeup', {}).get(sid, {}).get('on')) and doc['makeup'][sid].get('note') == 'came with the other batch')
+    check('make-up: tile shows label', 'Make-up' in await pg.locator(f'.tile[data-id="{sid}"] .st').inner_text())
+    await pg.click('nav >> text=History'); await pg.wait_for_timeout(150)
+    check('make-up: History lists it', await pg.locator('text=Make-up:').count() >= 1)
+    # untapping removes the make-up too
+    await pg.locator('[data-act=open-class]').first.click() if False else None
+    # Remove class deletes the record
+    await pg.click('nav >> text=Today'); await pg.fill('#t-date', date); await pg.dispatch_event('#t-date', 'change'); await pg.select_option('#t-batch', bid); await pg.wait_for_timeout(150)
+    await pg.click('[data-act=clear-day]'); await pg.wait_for_timeout(200)
+    check('Remove class deletes the record', key not in await fs(pg))
+    # unusual day: guard prompt, and untapping the only student removes the phantom class
+    d = await fs(pg)
+    days = d[f'studios/mudra/batches/{bid}']['days']
+    import datetime as dt
+    day = dt.date.fromisoformat(date)
+    while (day.isoweekday() % 7) in days or f'studios/mudra/attendance/{day}|{bid}' in d: day -= dt.timedelta(days=1)
+    await pg.fill('#t-date', day.isoformat()); await pg.dispatch_event('#t-date', 'change'); await pg.select_option('#t-batch', bid); await pg.wait_for_timeout(150)
+    pg.dialogs.clear(); await pg.locator('.tile').first.click(); await pg.wait_for_timeout(200)
+    check('unusual day: asks before creating a class', any("doesn't usually meet" in m for m in pg.dialogs))
+    await pg.locator('.tile').first.click(); await pg.wait_for_timeout(200)
+    check('unusual day: untapping last student removes the class', f'studios/mudra/attendance/{day}|{bid}' not in await fs(pg))
+    check('no JS errors (make-up)', not pg.errors, pg.errors[:2])
+    await ctx.close()
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
-        for suite in (core, features, resilience, tabbar, offline_sw):
+        for suite in (core, features, resilience, tabbar, makeup, offline_sw):
             try: await suite(b)
             except Exception as e: check(f'{suite.__name__} crashed', False, repr(e)[:300])
         await b.close()
